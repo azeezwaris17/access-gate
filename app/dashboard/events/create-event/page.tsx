@@ -1,14 +1,14 @@
+// app/dashboard/events/create-event/page.tsx
 "use client";
-
+import React from 'react'
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useAuthStore } from "@/lib/store";
 import toast from "react-hot-toast";
-import api from "@/lib/services/api"; // Import API service
-import { withAuth } from "@/lib/hocs/withAuth"; // Import HOC
+import api from "@/lib/services/api"; 
+import { withAuth } from "@/lib/hocs/withAuth";
 
 // Material UI Components
 import {
@@ -26,9 +26,8 @@ import {
   CircularProgress,
   Paper,
   Avatar,
-  useTheme,
   InputAdornment,
-  FormHelperText,
+  IconButton,
 } from "@mui/material";
 
 // Material UI Icons
@@ -39,43 +38,54 @@ import {
   Description,
   ArrowForward,
   Error as ErrorIcon,
-  CheckCircle,
   CalendarToday,
+  Add,
+  Delete,
+  ConfirmationNumber,
+  AttachMoney,
 } from "@mui/icons-material";
 
 /**
  * Zod schema for form validation
- * Defines the shape and validation rules for the create event form
  */
+const ticketTypeSchema = z.object({
+  name: z.string().min(1, "Ticket type name is required"),
+  price: z.number().min(0, "Price must be positive"),
+  quantity: z.number().min(1, "Quantity must be at least 1"),
+  description: z.string().optional(),
+});
+
 const createEventSchema = z.object({
   name: z.string().min(1, "Event name is required"),
   date: z.string().min(1, "Event date is required"),
   time: z.string().min(1, "Event time is required"),
   location: z.string().min(1, "Event location is required"),
   description: z.string().min(10, "Description must be at least 10 characters"),
+  ticketTypes: z.array(ticketTypeSchema).min(1, "At least one ticket type is required"),
 });
 
 type CreateEventForm = z.infer<typeof createEventSchema>;
+type TicketTypeForm = z.infer<typeof ticketTypeSchema>;
 
 /**
  * Create Event Page Component
- * Handles event creation with form validation and multi-step progression
  */
 function CreateEventPage() {
   const router = useRouter();
-  const { admin } = useAuthStore(); // We can access admin info if needed
-  const theme = useTheme();
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [activeStep, setActiveStep] = useState(0);
 
   /**
-   * React Hook Form configuration with Zod validation
+   * React Hook Form configuration
    */
   const {
     register,
     handleSubmit,
     formState: { errors },
     watch,
+    setValue,
+    getValues,
   } = useForm<CreateEventForm>({
     resolver: zodResolver(createEventSchema),
     mode: "onChange",
@@ -85,41 +95,61 @@ function CreateEventPage() {
       time: "",
       location: "",
       description: "",
+      ticketTypes: [],
     },
   });
 
-  // Watch form values for real-time validation display
-  const watchedValues = watch();
+  /**
+   * Add a new ticket type
+   */
+  const addTicketType = () => {
+    const currentTicketTypes = getValues("ticketTypes");
+    setValue("ticketTypes", [
+      ...currentTicketTypes,
+      { name: "", price: 0, quantity: 1, description: "" }
+    ]);
+  };
+
+  /**
+   * Remove a ticket type
+   */
+  const removeTicketType = (index: number) => {
+    const currentTicketTypes = getValues("ticketTypes");
+    setValue("ticketTypes", currentTicketTypes.filter((_, i) => i !== index));
+  };
+
+  /**
+   * Update ticket type field
+   */
+  const updateTicketType = (index: number, field: keyof TicketTypeForm, value: string | number) => {
+    const currentTicketTypes = getValues("ticketTypes");
+    const updatedTicketTypes = [...currentTicketTypes];
+    updatedTicketTypes[index] = {
+      ...updatedTicketTypes[index],
+      [field]: value
+    };
+    setValue("ticketTypes", updatedTicketTypes);
+  };
 
   /**
    * Handle form submission
-   * Creates event and redirects to ticket creation page
    */
   const onSubmit = async (data: CreateEventForm) => {
     setIsLoading(true);
     setError("");
 
     try {
-      // Use API service - automatically includes auth token
-      const response = await api.post("/events/create-event", data); // Removed /api prefix
+      const response = await api.post("/events/create-event", data);
 
       if (response.data) {
-        toast.success("Event created successfully!");
-
-        // Extract eventId and redirect to ticket creation
-        const eventId = response.data._id || response.data.id;
-        router.push(`/dashboard/tickets/${eventId}/create-ticket`);
+        toast.success("Event created successfully with tickets!");
+        router.push("/dashboard/events");
       }
-    } catch (error: any) {
-      // 401 errors are automatically handled by the API service interceptor
-      const errorMessage =
-        error.response?.data?.error || "Failed to create event";
+    } catch (error: unknown) {
+      console.error("Event creation error:", error);
+      const errorMessage = "Failed to create event";
       setError(errorMessage);
-      
-      // Only show toast if it's not a 401 error (already handled)
-      if (error.response?.status !== 401) {
-        toast.error(errorMessage);
-      }
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -129,6 +159,8 @@ function CreateEventPage() {
    * Steps for the creation process
    */
   const steps = ["Event Details", "Ticket Types"];
+
+  const ticketTypes = watch("ticketTypes") || [];
 
   return (
     <Box
@@ -168,8 +200,7 @@ function CreateEventPage() {
             color="text.secondary"
             sx={{ maxWidth: 500, mx: "auto" }}
           >
-            Start by setting up your event details. You'll add tickets in the
-            next step.
+            Set up your event details and ticket types in one go.
           </Typography>
         </Box>
 
@@ -178,47 +209,15 @@ function CreateEventPage() {
           elevation={2}
           sx={{
             p: 3,
-            borderTopLeftRadius: 0,
-            borderTopRightRadius: 0,
-            borderBottomLeftRadius: 0,
-            borderBottomRightRadius: 0,
+            borderRadius: 2,
             background: "white",
+            mb: 3,
           }}
         >
-          <Stepper activeStep={0} alternativeLabel>
+          <Stepper activeStep={activeStep} alternativeLabel>
             {steps.map((label) => (
               <Step key={label}>
-                <StepLabel
-                  StepIconComponent={() => (
-                    <Avatar
-                      sx={{
-                        width: 32,
-                        height: 32,
-                        bgcolor:
-                          label === "Event Details"
-                            ? "primary.main"
-                            : "grey.300",
-                        color: "white",
-                        fontSize: "0.875rem",
-                        fontWeight: "bold",
-                      }}
-                    >
-                      {label === "Event Details" ? "1" : "2"}
-                    </Avatar>
-                  )}
-                >
-                  <Typography
-                    variant="body2"
-                    fontWeight="medium"
-                    color={
-                      label === "Event Details"
-                        ? "primary.main"
-                        : "text.secondary"
-                    }
-                  >
-                    {label}
-                  </Typography>
-                </StepLabel>
+                <StepLabel>{label}</StepLabel>
               </Step>
             ))}
           </Stepper>
@@ -228,10 +227,7 @@ function CreateEventPage() {
         <Card
           elevation={4}
           sx={{
-            borderTopLeftRadius: 0,
-            borderTopRightRadius: 0,
-            borderBottomLeftRadius: 0,
-            borderBottomRightRadius: 0,
+            borderRadius: 2,
             overflow: "hidden",
             background: "white",
           }}
@@ -251,215 +247,302 @@ function CreateEventPage() {
               noValidate
               sx={{ mt: 1 }}
             >
-              {/* Event Name Field */}
-              <TextField
-                {...register("name")}
-                fullWidth
-                label="Event Name"
-                variant="outlined"
-                error={!!errors.name}
-                helperText={errors.name?.message}
-                placeholder="Enter your event name"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Event color={errors.name ? "error" : "action"} />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{ mb: 3 }}
-              />
+              {activeStep === 0 && (
+                <>
+                  {/* Event Name Field */}
+                  <TextField
+                    {...register("name")}
+                    fullWidth
+                    label="Event Name"
+                    variant="outlined"
+                    error={!!errors.name}
+                    helperText={errors.name?.message}
+                    placeholder="Enter your event name"
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <Event color={errors.name ? "error" : "action"} />
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{ mb: 3 }}
+                  />
 
-              {/* Date and Time Fields */}
-              <Box
-                sx={{
-                  display: "flex",
-                  gap: 3,
-                  mb: 3,
-                  flexWrap: { xs: "wrap", sm: "nowrap" },
-                }}
-              >
-                {/* Date Field */}
-                <TextField
-                  {...register("date")}
-                  fullWidth
-                  label="Event Date"
-                  type="date"
-                  variant="outlined"
-                  error={!!errors.date}
-                  helperText={errors.date?.message}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <CalendarToday
-                          color={errors.date ? "error" : "action"}
-                        />
-                      </InputAdornment>
-                    ),
-                  }}
-                  InputLabelProps={{
-                    shrink: true,
-                  }}
-                />
-
-                {/* Time Field */}
-                <TextField
-                  {...register("time")}
-                  fullWidth
-                  label="Event Time"
-                  type="time"
-                  variant="outlined"
-                  error={!!errors.time}
-                  helperText={errors.time?.message}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Schedule color={errors.time ? "error" : "action"} />
-                      </InputAdornment>
-                    ),
-                  }}
-                  InputLabelProps={{
-                    shrink: true,
-                  }}
-                />
-              </Box>
-
-              {/* Location Field */}
-              <TextField
-                {...register("location")}
-                fullWidth
-                label="Event Location"
-                variant="outlined"
-                error={!!errors.location}
-                helperText={errors.location?.message}
-                placeholder="Enter venue name or address"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <LocationOn
-                        color={errors.location ? "error" : "action"}
+                  {/* Date and Time Fields - Flexbox Layout */}
+                  <Box sx={{ 
+                    display: 'flex', 
+                    flexDirection: { xs: 'column', sm: 'row' },
+                    gap: 3, 
+                    mb: 3 
+                  }}>
+                    {/* Date Field */}
+                    <Box sx={{ flex: 1 }}>
+                      <TextField
+                        {...register("date")}
+                        fullWidth
+                        label="Event Date"
+                        type="date"
+                        variant="outlined"
+                        error={!!errors.date}
+                        helperText={errors.date?.message}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <CalendarToday
+                                color={errors.date ? "error" : "action"}
+                              />
+                            </InputAdornment>
+                          ),
+                        }}
+                        InputLabelProps={{
+                          shrink: true,
+                        }}
                       />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{ mb: 3 }}
-              />
+                    </Box>
 
-              {/* Description Field */}
-              <TextField
-                {...register("description")}
-                fullWidth
-                label="Event Description"
-                variant="outlined"
-                multiline
-                rows={4}
-                error={!!errors.description}
-                helperText={
-                  errors.description?.message ||
-                  "Minimum 10 characters required"
-                }
-                placeholder="Describe your event in detail..."
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment
-                      position="start"
-                      sx={{ alignSelf: "flex-start", mt: 1 }}
+                    {/* Time Field */}
+                    <Box sx={{ flex: 1 }}>
+                      <TextField
+                        {...register("time")}
+                        fullWidth
+                        label="Event Time"
+                        type="time"
+                        variant="outlined"
+                        error={!!errors.time}
+                        helperText={errors.time?.message}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <Schedule color={errors.time ? "error" : "action"} />
+                            </InputAdornment>
+                          ),
+                        }}
+                        InputLabelProps={{
+                          shrink: true,
+                        }}
+                      />
+                    </Box>
+                  </Box>
+
+                  {/* Location Field */}
+                  <TextField
+                    {...register("location")}
+                    fullWidth
+                    label="Event Location"
+                    variant="outlined"
+                    error={!!errors.location}
+                    helperText={errors.location?.message}
+                    placeholder="Enter venue name or address"
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <LocationOn
+                            color={errors.location ? "error" : "action"}
+                          />
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{ mb: 3 }}
+                  />
+
+                  {/* Description Field */}
+                  <TextField
+                    {...register("description")}
+                    fullWidth
+                    label="Event Description"
+                    variant="outlined"
+                    multiline
+                    rows={4}
+                    error={!!errors.description}
+                    helperText={
+                      errors.description?.message ||
+                      "Minimum 10 characters required"
+                    }
+                    placeholder="Describe your event in detail..."
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment
+                          position="start"
+                          sx={{ alignSelf: "flex-start", mt: 1 }}
+                        >
+                          <Description
+                            color={errors.description ? "error" : "action"}
+                          />
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{ mb: 4 }}
+                  />
+
+                  <Button
+                    onClick={() => setActiveStep(1)}
+                    fullWidth
+                    variant="contained"
+                    size="large"
+                    endIcon={<ArrowForward />}
+                    sx={{
+                      py: 1.5,
+                      background:
+                        "linear-gradient(45deg, #2196F3 0%, #21CBF3 100%)",
+                    }}
+                  >
+                    Next: Add Ticket Types
+                  </Button>
+                </>
+              )}
+
+              {activeStep === 1 && (
+                <>
+                  {/* Ticket Types Section */}
+                  <Box sx={{ mb: 4 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                      <Typography variant="h6" fontWeight="bold">
+                        Ticket Types
+                      </Typography>
+                      <Button
+                        startIcon={<Add />}
+                        onClick={addTicketType}
+                        variant="outlined"
+                      >
+                        Add Ticket Type
+                      </Button>
+                    </Box>
+
+                    {ticketTypes.length === 0 && (
+                      <Alert severity="info" sx={{ mb: 3 }}>
+                        Add at least one ticket type for your event.
+                      </Alert>
+                    )}
+
+                    {ticketTypes.map((_, index) => (
+                      <Paper
+                        key={index}
+                        elevation={2}
+                        sx={{ p: 3, mb: 3, borderRadius: 2 }}
+                      >
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                          <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <ConfirmationNumber />
+                            Ticket Type {index + 1}
+                          </Typography>
+                          <IconButton
+                            onClick={() => removeTicketType(index)}
+                            color="error"
+                            disabled={ticketTypes.length <= 1}
+                          >
+                            <Delete />
+                          </IconButton>
+                        </Box>
+
+                        {/* Ticket Type Fields - Flexbox Layout */}
+                        <Box sx={{ 
+                          display: 'flex', 
+                          flexDirection: { xs: 'column', sm: 'row' },
+                          gap: 3,
+                          mb: 3 
+                        }}>
+                          {/* Ticket Name */}
+                          <Box sx={{ flex: 1 }}>
+                            <TextField
+                              fullWidth
+                              label="Ticket Name"
+                              value={ticketTypes[index]?.name || ''}
+                              onChange={(e) => updateTicketType(index, 'name', e.target.value)}
+                              error={!!errors.ticketTypes?.[index]?.name}
+                              helperText={errors.ticketTypes?.[index]?.name?.message}
+                              placeholder="e.g., General Admission, VIP"
+                            />
+                          </Box>
+
+                          {/* Price */}
+                          <Box sx={{ flex: 1 }}>
+                            <TextField
+                              fullWidth
+                              label="Price"
+                              type="number"
+                              value={ticketTypes[index]?.price || 0}
+                              onChange={(e) => updateTicketType(index, 'price', parseFloat(e.target.value))}
+                              error={!!errors.ticketTypes?.[index]?.price}
+                              helperText={errors.ticketTypes?.[index]?.price?.message}
+                              InputProps={{
+                                startAdornment: (
+                                  <InputAdornment position="start">
+                                    <AttachMoney />
+                                  </InputAdornment>
+                                ),
+                              }}
+                            />
+                          </Box>
+
+                          {/* Quantity */}
+                          <Box sx={{ flex: 1 }}>
+                            <TextField
+                              fullWidth
+                              label="Quantity"
+                              type="number"
+                              value={ticketTypes[index]?.quantity || 1}
+                              onChange={(e) => updateTicketType(index, 'quantity', parseInt(e.target.value))}
+                              error={!!errors.ticketTypes?.[index]?.quantity}
+                              helperText={errors.ticketTypes?.[index]?.quantity?.message}
+                            />
+                          </Box>
+                        </Box>
+
+                        {/* Description Field */}
+                        <Box>
+                          <TextField
+                            fullWidth
+                            label="Description (Optional)"
+                            multiline
+                            rows={2}
+                            value={ticketTypes[index]?.description || ''}
+                            onChange={(e) => updateTicketType(index, 'description', e.target.value)}
+                            placeholder="Describe this ticket type..."
+                          />
+                        </Box>
+                      </Paper>
+                    ))}
+                  </Box>
+
+                  {/* Navigation Buttons */}
+                  <Box sx={{ display: 'flex', gap: 2 }}>
+                    <Button
+                      onClick={() => setActiveStep(0)}
+                      variant="outlined"
+                      size="large"
+                      sx={{ flex: 1 }}
                     >
-                      <Description
-                        color={errors.description ? "error" : "action"}
-                      />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{ mb: 4 }}
-              />
-
-              {/* Submit Button */}
-              <Button
-                type="submit"
-                fullWidth
-                variant="contained"
-                size="large"
-                disabled={isLoading}
-                endIcon={!isLoading && <ArrowForward />}
-                sx={{
-                  py: 1.5,
-                  background:
-                    "linear-gradient(45deg, #2196F3 0%, #21CBF3 100%)",
-                  "&:hover": {
-                    background:
-                      "linear-gradient(45deg, #1976D2 0%, #00ACC1 100%)",
-                    transform: "translateY(-1px)",
-                    boxShadow: 4,
-                  },
-                  transition: "all 0.2s ease-in-out",
-                }}
-              >
-                {isLoading ? (
-                  <>
-                    <CircularProgress size={20} sx={{ mr: 1 }} />
-                    Creating Event...
-                  </>
-                ) : (
-                  "Next: Add Ticket Types"
-                )}
-              </Button>
+                      Back
+                    </Button>
+                    <Button
+                      type="submit"
+                      variant="contained"
+                      size="large"
+                      disabled={isLoading}
+                      sx={{
+                        flex: 2,
+                        background:
+                          "linear-gradient(45deg, #2196F3 0%, #21CBF3 100%)",
+                      }}
+                    >
+                      {isLoading ? (
+                        <>
+                          <CircularProgress size={20} sx={{ mr: 1 }} />
+                          Creating Event...
+                        </>
+                      ) : (
+                        "Create Event & Tickets"
+                      )}
+                    </Button>
+                  </Box>
+                </>
+              )}
             </Box>
           </CardContent>
-
-          {/* Footer Note */}
-          <Paper
-            elevation={0}
-            sx={{
-              p: 3,
-              background: "grey.50",
-              borderTop: "1px solid",
-              borderColor: "divider",
-            }}
-          >
-            <Typography variant="body2" color="text.secondary" align="center">
-              You'll be able to add multiple ticket types and pricing in the
-              next step
-            </Typography>
-          </Paper>
         </Card>
-
-        {/* Form Validation Summary */}
-        {Object.keys(errors).length > 0 && (
-          <Paper
-            elevation={1}
-            sx={{
-              p: 2,
-              mt: 3,
-              borderRadius: 2,
-              background: "warning.light",
-            }}
-          >
-            <Typography
-              variant="body2"
-              color="warning.dark"
-              fontWeight="medium"
-            >
-              Please fix the following errors to continue:
-            </Typography>
-            <Box component="ul" sx={{ mt: 1, pl: 2 }}>
-              {Object.entries(errors).map(([field, error]) => (
-                <Typography
-                  key={field}
-                  component="li"
-                  variant="body2"
-                  color="warning.dark"
-                >
-                  {error.message}
-                </Typography>
-              ))}
-            </Box>
-          </Paper>
-        )}
       </Container>
     </Box>
   );
 }
 
-// Export the authenticated component
 export default withAuth(CreateEventPage);

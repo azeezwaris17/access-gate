@@ -1,7 +1,7 @@
 // /api/events/stats/route.ts
 import { connectDB } from '@/lib/db';
-import { Ticket } from '@/models/Ticket';
-import { Event } from '@/models/Event';
+import { Ticket } from '@/app/api/models/Ticket';
+import { Event } from '@/app/api/models/Event';
 import { verifyToken } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 

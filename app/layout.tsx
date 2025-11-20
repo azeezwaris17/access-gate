@@ -19,6 +19,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'AccessGate - Event Ticketing System',
   description: 'Secure event ticketing and access control',
+  icons: {
+    icon: '/favicon.svg', 
+  },
 }
 
 export default function RootLayout({

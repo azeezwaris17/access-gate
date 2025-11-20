@@ -1,5 +1,5 @@
 import { connectDB } from '@/lib/db';
-import { Admin } from '@/models/Admin';
+import { Admin } from '@/app/api/models/Admin';
 import { comparePassword, generateToken } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 

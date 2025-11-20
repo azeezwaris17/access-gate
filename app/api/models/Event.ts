@@ -1,9 +1,12 @@
+// /models/Event.ts
 import mongoose from 'mongoose';
 
 export interface ITicketType {
+  _id?: mongoose.Types.ObjectId;
   name: string;
   price: number;
   quantity: number;
+  description?: string;
   specialConditions?: string;
 }
 
@@ -15,6 +18,7 @@ export interface IEvent extends mongoose.Document {
   location: string;
   description: string;
   ticketTypes: ITicketType[];
+  status: 'active' | 'completed' | 'cancelled';
   createdAt: Date;
 }
 
@@ -29,8 +33,14 @@ const EventSchema = new mongoose.Schema<IEvent>({
     name: { type: String, required: true },
     price: { type: Number, required: true },
     quantity: { type: Number, required: true },
+    description: String,
     specialConditions: String,
   }],
+  status: { 
+    type: String, 
+    enum: ['active', 'completed', 'cancelled'],
+    default: 'active'
+  },
   createdAt: { type: Date, default: Date.now },
 });
 

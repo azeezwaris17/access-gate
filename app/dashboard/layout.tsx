@@ -1,5 +1,5 @@
 "use client";
-
+import React from 'react'
 import { useAuthStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -14,7 +14,6 @@ import {
   Typography,
   IconButton,
   List,
-  ListItem,
   ListItemButton,
   ListItemIcon,
   ListItemText,
@@ -33,25 +32,24 @@ import {
   Menu as MenuIcon,
   Logout,
   Shield,
-  BarChart,
-  ConfirmationNumber,
   Event,
   Add,
   List as ListIcon,
   ExpandLess,
   ExpandMore,
-  Home,
-  VpnKey,
-  Person,
-  Settings,
-  ChevronRight,
   Dashboard,
-  AdminPanelSettings,
-  QrCodeScanner, // Added for Gate icon
 } from "@mui/icons-material";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
+}
+
+interface NavigationItem {
+  label: string;
+  icon: React.ReactNode;
+  href?: string;
+  onClick?: () => void;
+  children?: NavigationItem[];
 }
 
 /**
@@ -103,18 +101,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   };
 
   /**
-   * Handle create ticket navigation
-   */
-  const handleCreateTicket = () => {
-    router.push("/dashboard/events");
-    // Fixed: Use toast directly instead of toast.info
-    toast("Please select an event first to create tickets", {
-      icon: "ℹ️",
-      duration: 4000,
-    });
-  };
-
-  /**
    * User menu handlers
    */
   const handleUserMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
@@ -128,7 +114,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   /**
    * Navigation items configuration
    */
-  const navigationItems = [
+  const navigationItems: NavigationItem[] = [
     {
       label: "Dashboard",
       icon: <Dashboard />,
@@ -146,37 +132,22 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         {
           label: "All Events",
           icon: <ListIcon />,
-          href: "/dashboard/events",
+          href: "/dashboard/events/all-events",
         },
       ],
     },
-    {
-      label: "Tickets",
-      icon: <ConfirmationNumber />,
-      children: [
-        {
-          label: "Create Ticket",
-          icon: <Add />,
-          onClick: handleCreateTicket,
-        },
-        {
-          label: "All Tickets",
-          icon: <ListIcon />,
-          href: "/dashboard/tickets",
-        },
-      ],
-    },
-    {
-      label: "Admin Keys",
-      icon: <VpnKey />,
-      href: "/dashboard/keys",
-    },
-    // {
-    //   label: "Gate",
-    //   icon: <QrCodeScanner />, 
-    //   href: "/gate",
-    // },
   ];
+
+  /**
+   * Handle navigation item click
+   */
+  const handleNavigationClick = (item: NavigationItem) => {
+    if (item.onClick) {
+      item.onClick();
+    } else if (item.href) {
+      router.push(item.href);
+    }
+  };
 
   /**
    * Sidebar drawer content
@@ -288,10 +259,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                               backgroundColor: "action.hover",
                             },
                           }}
-                          onClick={
-                            child.onClick ||
-                            (() => child.href && router.push(child.href))
-                          }
+                          onClick={() => handleNavigationClick(child)}
                         >
                           <ListItemIcon sx={{ minWidth: 36 }}>
                             {child.icon}
@@ -319,7 +287,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                       color: "primary.main",
                     },
                   }}
-                  onClick={() => item.href && router.push(item.href)}
+                  onClick={() => handleNavigationClick(item)}
                 >
                   <ListItemIcon sx={{ color: "inherit", minWidth: 40 }}>
                     {item.icon}
@@ -368,7 +336,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   );
 
   if (!token) {
-    return null; // or loading spinner
+    return null; 
   }
 
   return (

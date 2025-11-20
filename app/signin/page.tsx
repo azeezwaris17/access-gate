@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -7,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuthStore } from "@/lib/store";
 import toast from "react-hot-toast";
-import api from "@/lib/services/api"; // Import the API service instead of axios
+import api from "@/lib/services/api";
 
 // Material UI Components
 import {
@@ -35,8 +36,6 @@ import {
   Email,
   Lock,
   Security,
-  ArrowForward,
-  Login,
 } from "@mui/icons-material";
 
 /**
@@ -52,7 +51,7 @@ const signInSchema = z.object({
     .string()
     .min(1, "Password is required")
     .min(6, "Password must be at least 6 characters"),
-  rememberMe: z.boolean().default(false),
+  rememberMe: z.boolean(),
 });
 
 // Infer TypeScript type from Zod schema
@@ -74,7 +73,7 @@ export default function SignInPage() {
     formState: { errors },
     setError,
   } = useForm<SignInForm>({
-    resolver: zodResolver(signInSchema) as any, // Type assertion to fix version mismatch
+    resolver: zodResolver(signInSchema),
     defaultValues: {
       email: "",
       password: "",
@@ -90,18 +89,17 @@ export default function SignInPage() {
     setIsLoading(true);
 
     try {
-      // API call using the configured api service (automatically adds auth headers)
-      const response = await api.post("/auth/login", { // Note: removed /api prefix since baseURL handles it
+      // API call using the configured api service
+      const response = await api.post("/auth/login", {
         email: data.email.toLowerCase().trim(),
         password: data.password,
         rememberMe: data.rememberMe,
       });
 
       // Extract response data
-      const { token, admin, user } = response.data;
+      const { token, admin } = response.data;
 
       // Update auth store with user information
-      // The API service will now automatically include the token in future requests
       setAuth(token, {
         id: admin.id,
         fullName: admin.fullName,
@@ -116,27 +114,39 @@ export default function SignInPage() {
       setTimeout(() => {
         router.push("/dashboard");
       }, 1000);
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Comprehensive error handling
       let errorMessage = "Login failed. Please check your credentials.";
 
-      // Since we're using the api service, 401 errors are already handled by the interceptor
-      // We only need to handle other types of errors here
-      if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
+      if (error && typeof error === 'object' && 'response' in error) {
+        const apiError = error as { 
+          response?: { 
+            data?: { 
+              error?: string; 
+              field?: string 
+            }; 
+            status?: number 
+          } 
+        };
+        
+        if (apiError.response?.data?.error) {
+          errorMessage = apiError.response.data.error;
 
-        // Set field-specific errors from backend with proper typing
-        if (error.response?.data?.field) {
-          const fieldName = error.response.data.field as keyof SignInForm;
-          setError(fieldName, {
-            type: "server",
-            message: error.response.data.error,
-          });
+          // Set field-specific errors from backend with proper typing
+          if (apiError.response?.data?.field) {
+            const fieldName = apiError.response.data.field as keyof SignInForm;
+            setError(fieldName, {
+              type: "server",
+              message: apiError.response.data.error,
+            });
+          }
         }
-      }
 
-      // Show error notification (unless it was a 401 which was already handled)
-      if (error.response?.status !== 401) {
+        // Show error notification (unless it was a 401 which was already handled)
+        if (apiError.response?.status !== 401) {
+          toast.error(errorMessage);
+        }
+      } else {
         toast.error(errorMessage);
       }
     } finally {
@@ -161,7 +171,7 @@ export default function SignInPage() {
         alignItems: "center",
         justifyContent: "center",
         py: 4,
-      background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
+        backgroundColor: "#f5f7fa",
       }}
     >
       <Box sx={{ width: "100%" }}>
@@ -186,8 +196,7 @@ export default function SignInPage() {
                   width: 80,
                   height: 80,
                   borderRadius: 2,
-                  background:
-                    "linear-gradient(45deg, #2196F3 0%, #21CBF3 100%)",
+                  backgroundColor: "#2196F3",
                   mb: 3,
                 }}
               >
@@ -205,10 +214,6 @@ export default function SignInPage() {
               >
                 Welcome Back
               </Typography>
-
-              {/* <Typography variant="body1" color="text.secondary">
-                Sign in to your AccessGate admin dashboard
-              </Typography> */}
             </Box>
 
             {/* Sign In Form */}
@@ -313,7 +318,6 @@ export default function SignInPage() {
                 variant="contained"
                 size="large"
                 disabled={isLoading}
-                // endIcon={!isLoading && <Login />}
                 sx={{
                   mt: 1,
                   mb: 2,
@@ -341,9 +345,16 @@ export default function SignInPage() {
 
               {/* Divider and Sign in Link */}
               <Divider sx={{ my: 3 }}>
-                <Box sx={{ display: "flex", flexDirection: "row", alignItems:'center', gap: 1 }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 1,
+                  }}
+                >
                   <Typography variant="body2" color="text.secondary">
-                    Don't have an account?
+                    Don&apos;t have an account?
                   </Typography>
 
                   <Link

@@ -1,6 +1,6 @@
 import { connectDB } from '@/lib/db';
-import { Admin } from '@/models/Admin';
-import { hashPassword, generateToken, generateRegistrationKey } from '@/lib/auth';
+import { Admin } from '@/app/api/models/Admin';
+import { hashPassword, generateToken, } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
