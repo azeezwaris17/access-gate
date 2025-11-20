@@ -1,6 +1,6 @@
 // /api/tickets/[eventId]/ticket-types/route.ts
 import { connectDB } from '@/lib/db';
-import { Event } from '@/models/Event';
+import { Event } from '@/app/api/models/Event';
 import { verifyToken } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 

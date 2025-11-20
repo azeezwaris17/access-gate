@@ -1,7 +1,6 @@
 // /api/tickets/validate-ticket-by-code/route.ts
 import { connectDB } from '@/lib/db';
-import { Ticket } from '@/models/Ticket';
-import { validateTicketToken } from '@/lib/auth';
+import { Ticket } from '@/app/api/models/Ticket';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {

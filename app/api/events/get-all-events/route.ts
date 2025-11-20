@@ -1,6 +1,7 @@
+// app/api/events/get-all-events/route.ts
 import { connectDB } from '@/lib/db';
-import { Event } from '@/models/Event';
-import { Ticket } from '@/models/Ticket';
+import { Event } from '@/app/api/models/Event';
+import { Ticket } from '@/app/api/models/Ticket';
 import { verifyToken } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
@@ -24,19 +25,72 @@ interface EventDocument {
   location: string;
   description: string;
   ticketTypes: TicketType[];
+  status: 'active' | 'completed' | 'cancelled';
   createdAt: Date;
   __v?: number;
 }
 
-interface EventWithStats extends Omit<EventDocument, '_id' | 'ticketTypes'> {
+interface TicketTypeWithSales extends Omit<TicketType, '_id'> {
   _id: string;
-  ticketTypes: Array<TicketType & { sold: number; _id: string }>;
+  sold: number;
+  available: number; // Add available field
+}
+
+interface EventWithStats extends Omit<EventDocument, '_id' | 'ticketTypes' | 'adminId'> {
+  _id: string;
+  adminId: string;
+  ticketTypes: TicketTypeWithSales[];
   totalRevenue: number;
   totalTickets: number;
   totalSold: number;
+  totalAvailable: number; // Add total available field
   computedStatus: string;
   checkInCount: number;
   totalTicketCount: number;
+}
+
+
+
+interface OrCondition {
+  name?: { $regex: string; $options: string };
+  location?: { $regex: string; $options: string };
+  description?: { $regex: string; $options: string };
+  status?: 'active' | 'completed' | 'cancelled';
+  date?: {
+    $gte?: Date;
+    $lt?: Date;
+    $lte?: Date;
+  };
+}
+
+interface EventFilter {
+  adminId: mongoose.Types.ObjectId;
+  status?: 'active' | 'completed' | 'cancelled';
+  date?: {
+    $gte?: Date;
+    $lt?: Date;
+    $lte?: Date;
+  };
+  $or?: OrCondition[];
+}
+
+interface SortObject {
+  [key: string]: 1 | -1;
+}
+
+// Simplified type for lean documents - use type assertion in the map function
+interface LeanEvent {
+  _id: mongoose.Types.ObjectId;
+  adminId: mongoose.Types.ObjectId;
+  name: string;
+  date: Date;
+  time: string;
+  location: string;
+  description: string;
+  ticketTypes: TicketType[];
+  status: 'active' | 'completed' | 'cancelled';
+  createdAt: Date;
+  __v?: number;
 }
 
 function getToken(request: NextRequest): string | null {
@@ -65,22 +119,33 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search');
 
     // Build query filter
-    let filter: any = { adminId: new mongoose.Types.ObjectId(decoded.adminId) };
+    const filter: EventFilter = { adminId: new mongoose.Types.ObjectId(decoded.adminId) };
 
-    // Add status filter if provided
+    // Enhanced status filter using the actual status field
     if (status && status !== 'all') {
       const today = new Date();
+      
       if (status === 'active') {
+        // Active events: status is active AND date is in future or today
+        filter.status = 'active';
         filter.date = { $gte: today };
-        // Remove status filter since we don't have status field in the model
       } else if (status === 'completed') {
-        filter.date = { $lt: today };
-        // Remove status filter since we don't have status field in the model
+        // Completed events: status is completed OR (date is in past AND status is active)
+        filter.$or = [
+          { status: 'completed' },
+          { date: { $lt: today }, status: 'active' } // Auto-complete past active events
+        ];
+      } else if (status === 'cancelled') {
+        // Only cancelled events
+        filter.status = 'cancelled';
+      } else if (status === 'upcoming') {
+        // Upcoming events: active and in future
+        filter.status = 'active';
+        filter.date = { $gte: today };
       }
-      // Note: 'cancelled' status is not supported in the current model
     }
 
-    // Add search filter if provided
+    // Search filter
     if (search) {
       filter.$or = [
         { name: { $regex: search, $options: 'i' } },
@@ -89,58 +154,71 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    // Fetch events with populated data - remove the type assertion and handle properly
+    // Fetch events with populated data
     const events = await Event.find(filter)
       .sort({ date: 1, createdAt: -1 })
       .lean();
 
     // Convert to proper type and get ticket sales data for each event
     const eventsWithStats: EventWithStats[] = await Promise.all(
-      events.map(async (event: any): Promise<EventWithStats> => {
-        // Get all tickets for this event
-        const tickets = await Ticket.find({ eventId: event._id.toString() }).lean();
+      events.map(async (event): Promise<EventWithStats> => {
+        // Type assertion to avoid TypeScript errors
+        const leanEvent = event as unknown as LeanEvent;
         
-        // Calculate ticket sales per ticket type
-        const ticketTypesWithSales = event.ticketTypes.map((ticketType: TicketType) => {
+        // Get all tickets for this event
+        const tickets = await Ticket.find({ eventId: leanEvent._id.toString() }).lean();
+        
+        // Calculate ticket sales per ticket type with available count
+        const ticketTypesWithSales: TicketTypeWithSales[] = leanEvent.ticketTypes.map((ticketType: TicketType) => {
           const soldTickets = tickets.filter(ticket => 
             ticket.ticketTypeId === ticketType._id?.toString()
           ).length;
 
+          const availableTickets = ticketType.quantity - soldTickets;
+
           return {
             ...ticketType,
             sold: soldTickets,
+            available: availableTickets,
             _id: ticketType._id?.toString() || new mongoose.Types.ObjectId().toString()
           };
         });
 
         // Calculate total revenue
-        const totalRevenue = ticketTypesWithSales.reduce((sum: number, type: TicketType & { sold: number }) => {
-          return sum + (type.price * (type.sold || 0));
+        const totalRevenue = ticketTypesWithSales.reduce((sum: number, type: TicketTypeWithSales) => {
+          return sum + (type.price * type.sold);
         }, 0);
 
-        // Calculate total tickets and sold tickets
-        const totalTickets = ticketTypesWithSales.reduce((sum: number, type: TicketType) => sum + type.quantity, 0);
-        const totalSold = ticketTypesWithSales.reduce((sum: number, type: TicketType & { sold: number }) => sum + (type.sold || 0), 0);
+        // Calculate total tickets, sold tickets, and available tickets
+        const totalTickets = ticketTypesWithSales.reduce((sum: number, type: TicketTypeWithSales) => sum + type.quantity, 0);
+        const totalSold = ticketTypesWithSales.reduce((sum: number, type: TicketTypeWithSales) => sum + type.sold, 0);
+        const totalAvailable = ticketTypesWithSales.reduce((sum: number, type: TicketTypeWithSales) => sum + type.available, 0);
 
-        // Determine event status based on date (since we don't have status field)
-        const eventDate = new Date(event.date);
+        // Determine computed status based on both the status field and date logic
+        const eventDate = new Date(leanEvent.date);
         const today = new Date();
-        let computedStatus = 'active';
-        
-        if (eventDate < today) {
+        let computedStatus = leanEvent.status;
+
+        // Auto-update status based on date if still active
+        if (leanEvent.status === 'active' && eventDate < today) {
           computedStatus = 'completed';
         }
 
         return {
-          ...event,
-          _id: event._id.toString(),
-          adminId: event.adminId,
-          date: event.date,
-          createdAt: event.createdAt,
+          _id: leanEvent._id.toString(),
+          adminId: leanEvent.adminId.toString(),
+          name: leanEvent.name,
+          date: leanEvent.date,
+          time: leanEvent.time,
+          location: leanEvent.location,
+          description: leanEvent.description,
+          status: leanEvent.status,
+          createdAt: leanEvent.createdAt,
           ticketTypes: ticketTypesWithSales,
           totalRevenue,
           totalTickets,
           totalSold,
+          totalAvailable,
           computedStatus,
           checkInCount: tickets.filter(ticket => ticket.status === 'checked-in').length,
           totalTicketCount: tickets.length
@@ -160,6 +238,42 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// POST request body interface
+interface PostRequestBody {
+  status?: string;
+  search?: string;
+  dateRange?: {
+    start: string;
+    end: string;
+  };
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+  page?: number;
+  limit?: number;
+}
+
+// Define a more flexible filter type for complex queries
+type MongoFilter = {
+  adminId: mongoose.Types.ObjectId;
+  status?: 'active' | 'completed' | 'cancelled';
+  date?: {
+    $gte?: Date;
+    $lt?: Date;
+    $lte?: Date;
+  };
+  $or?: Array<{
+    name?: { $regex: string; $options: string };
+    location?: { $regex: string; $options: string };
+    description?: { $regex: string; $options: string };
+    status?: 'active' | 'completed' | 'cancelled';
+    date?: {
+      $gte?: Date;
+      $lt?: Date;
+      $lte?: Date;
+    };
+  }>;
+};
+
 // Optional: Add support for POST to handle complex filtering
 export async function POST(request: NextRequest) {
   try {
@@ -175,7 +289,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
+    const body: PostRequestBody = await request.json();
     const { 
       status, 
       search, 
@@ -186,16 +300,27 @@ export async function POST(request: NextRequest) {
       limit = 10 
     } = body;
 
-    // Build query filter
-    let filter: any = { adminId: new mongoose.Types.ObjectId(decoded.adminId) };
+    // Build query filter with proper typing
+    const filter: MongoFilter = { adminId: new mongoose.Types.ObjectId(decoded.adminId) };
 
-    // Status filter - simplified since we don't have status field
+    // Enhanced status filter using the actual status field
     if (status && status !== 'all') {
       const today = new Date();
+      
       if (status === 'active') {
+        filter.status = 'active';
         filter.date = { $gte: today };
       } else if (status === 'completed') {
-        filter.date = { $lt: today };
+        // Use $or for completed status
+        filter.$or = [
+          { status: 'completed' },
+          { date: { $lt: today }, status: 'active' }
+        ];
+      } else if (status === 'cancelled') {
+        filter.status = 'cancelled';
+      } else if (status === 'upcoming') {
+        filter.status = 'active';
+        filter.date = { $gte: today };
       }
     }
 
@@ -217,7 +342,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Build sort object
-    const sort: any = {};
+    const sort: SortObject = {};
     sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
     // Calculate pagination
@@ -235,46 +360,58 @@ export async function POST(request: NextRequest) {
 
     // Get ticket sales data for each event
     const eventsWithStats: EventWithStats[] = await Promise.all(
-      events.map(async (event: any): Promise<EventWithStats> => {
-        const tickets = await Ticket.find({ eventId: event._id.toString() }).lean();
+      events.map(async (event): Promise<EventWithStats> => {
+        // Type assertion to avoid TypeScript errors
+        const leanEvent = event as unknown as LeanEvent;
         
-        const ticketTypesWithSales = event.ticketTypes.map((ticketType: TicketType) => {
+        const tickets = await Ticket.find({ eventId: leanEvent._id.toString() }).lean();
+        
+        const ticketTypesWithSales: TicketTypeWithSales[] = leanEvent.ticketTypes.map((ticketType: TicketType) => {
           const soldTickets = tickets.filter(ticket => 
             ticket.ticketTypeId === ticketType._id?.toString()
           ).length;
 
+          const availableTickets = ticketType.quantity - soldTickets;
+
           return {
             ...ticketType,
             sold: soldTickets,
+            available: availableTickets,
             _id: ticketType._id?.toString() || new mongoose.Types.ObjectId().toString()
           };
         });
 
-        const totalRevenue = ticketTypesWithSales.reduce((sum: number, type: TicketType & { sold: number }) => {
-          return sum + (type.price * (type.sold || 0));
+        const totalRevenue = ticketTypesWithSales.reduce((sum: number, type: TicketTypeWithSales) => {
+          return sum + (type.price * type.sold);
         }, 0);
 
-        const totalTickets = ticketTypesWithSales.reduce((sum: number, type: TicketType) => sum + type.quantity, 0);
-        const totalSold = ticketTypesWithSales.reduce((sum: number, type: TicketType & { sold: number }) => sum + (type.sold || 0), 0);
+        const totalTickets = ticketTypesWithSales.reduce((sum: number, type: TicketTypeWithSales) => sum + type.quantity, 0);
+        const totalSold = ticketTypesWithSales.reduce((sum: number, type: TicketTypeWithSales) => sum + type.sold, 0);
+        const totalAvailable = ticketTypesWithSales.reduce((sum: number, type: TicketTypeWithSales) => sum + type.available, 0);
 
-        const eventDate = new Date(event.date);
+        const eventDate = new Date(leanEvent.date);
         const today = new Date();
-        let computedStatus = 'active';
+        let computedStatus = leanEvent.status;
 
-        if (eventDate < today) {
+        if (leanEvent.status === 'active' && eventDate < today) {
           computedStatus = 'completed';
         }
 
         return {
-          ...event,
-          _id: event._id.toString(),
-          adminId: event.adminId,
-          date: event.date,
-          createdAt: event.createdAt,
+          _id: leanEvent._id.toString(),
+          adminId: leanEvent.adminId.toString(),
+          name: leanEvent.name,
+          date: leanEvent.date,
+          time: leanEvent.time,
+          location: leanEvent.location,
+          description: leanEvent.description,
+          status: leanEvent.status,
+          createdAt: leanEvent.createdAt,
           ticketTypes: ticketTypesWithSales,
           totalRevenue,
           totalTickets,
           totalSold,
+          totalAvailable,
           computedStatus,
           checkInCount: tickets.filter(ticket => ticket.status === 'checked-in').length,
           totalTicketCount: tickets.length

@@ -1,7 +1,7 @@
 // /api/tickets/[eventId]/create-ticket/route.ts
 import { connectDB } from '@/lib/db';
-import { Ticket } from '@/models/Ticket';
-import { Event } from '@/models/Event';
+import { Ticket } from '@/app/api/models/Ticket';
+import { Event } from '@/app/api/models/Event';
 import { generateQRCode } from '@/lib/qrcode';
 import { sendTicketEmail } from '@/lib/email';
 import { verifyToken } from '@/lib/auth';

@@ -1,0 +1,56 @@
+<!-- SVG Favicon for AccessGate Admin Panel -->
+<!-- Width and height of the SVG - 32x32 pixels -->
+<svg width="32" height="32" 
+     <!-- ViewBox defines the coordinate system: min-x, min-y, width, height -->
+     viewBox="0 0 24 24" 
+
+     <!-- No fill color on the SVG itself, only on paths -->
+     fill="none" 
+
+     <!-- XML namespace for SVG -->
+     xmlns="http://www.w3.org/2000/svg"
+     >
+  
+  <!-- Main path data that draws the admin panel/building icon -->
+  <!-- The 'd' attribute contains the drawing commands -->
+  <path d="
+    M17 11V3H7V7H3V21H11V17H13V21H21V11H17Z
+    <!-- Building outline: Creates a building shape with multiple floors/windows -->
+    
+    M7 19H5V17H7V19Z
+    <!-- First floor, first window -->
+    
+    M7 15H5V13H7V15Z
+    <!-- First floor, second window -->
+    
+    M7 11H5V9H7V11Z
+    <!-- First floor, third window -->
+    
+    M11 15H9V13H11V15Z
+    <!-- Second floor, first window -->
+    
+    M11 11H9V9H11V11Z
+    <!-- Second floor, second window -->
+    
+    M11 7H9V5H11V7Z
+    <!-- Second floor, third window -->
+    
+    M15 15H13V13H15V15Z
+    <!-- Third floor, first window -->
+    
+    M15 11H13V9H15V11Z
+    <!-- Third floor, second window -->
+    
+    M15 7H13V5H15V7Z
+    <!-- Third floor, third window -->
+    
+    M19 19H17V17H19V19Z
+    <!-- Fourth floor, first window -->
+    
+    M19 15H17V13H19V15Z
+    <!-- Fourth floor, second window -->
+  " 
+  <!-- Fill color: white - will show as white icon on browser tab -->
+  fill="white"/>
+  
+</svg>

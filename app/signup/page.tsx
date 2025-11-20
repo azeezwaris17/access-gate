@@ -1,5 +1,5 @@
 "use client";
-
+import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -35,7 +35,6 @@ import {
   Lock,
   Key,
   Info,
-  ArrowForward,
   AdminPanelSettings,
 } from "@mui/icons-material";
 
@@ -137,25 +136,39 @@ export default function SignUpPage() {
       setTimeout(() => {
         router.push("/dashboard");
       }, 1000);
-    } catch (error: any) {
-      // Error handling with specific error messages
-      let errorMessage = "Registration failed. Please try again.";
+  } catch (error: unknown) {
+      // Comprehensive error handling
+      let errorMessage = "Login failed. Please check your credentials.";
 
-      // The API service automatically handles 401 errors, so we only handle other errors
-      if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
+      if (error && typeof error === 'object' && 'response' in error) {
+        const apiError = error as { 
+          response?: { 
+            data?: { 
+              error?: string; 
+              field?: string 
+            }; 
+            status?: number 
+          } 
+        };
+        
+        if (apiError.response?.data?.error) {
+          errorMessage = apiError.response.data.error;
 
-        // Handle specific field errors from backend
-        if (error.response?.data?.field) {
-          setError(error.response.data.field as keyof SignUpForm, {
-            type: "server",
-            message: error.response.data.error,
-          });
+          // Set field-specific errors from backend with proper typing
+          if (apiError.response?.data?.field) {
+            const fieldName = apiError.response.data.field as keyof SignUpForm;
+            setError(fieldName, {
+              type: "server",
+              message: apiError.response.data.error,
+            });
+          }
         }
-      }
 
-      // Show error notification (unless it was a 401 which was already handled)
-      if (error.response?.status !== 401) {
+        // Show error notification (unless it was a 401 which was already handled)
+        if (apiError.response?.status !== 401) {
+          toast.error(errorMessage);
+        }
+      } else {
         toast.error(errorMessage);
       }
     } finally {
@@ -252,9 +265,7 @@ export default function SignUpPage() {
                 Admin Registration
               </Typography>
 
-              {/* <Typography variant="body1" color="text.secondary">
-                Create your administrator account
-              </Typography> */}
+
             </Box>
 
             {/* Registration Form */}

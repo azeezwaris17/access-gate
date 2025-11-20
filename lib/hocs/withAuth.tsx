@@ -1,6 +1,6 @@
 // lib/hocs/withAuth.tsx
 "use client";
-
+import React from "react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/store";
