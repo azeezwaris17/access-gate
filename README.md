@@ -1,192 +1,250 @@
 # 🎟️ AccessGate — Event Ticketing & Verification System
 
-AccessGate is a modern, secure event ticketing platform built with **Next.js** (App Router).
-
-> Note: This repository implements the API using Next.js route handlers (`app/api/*`) rather than a separate Express server. This keeps the frontend and backend in a single deployable Next.js application (recommended for fast demos and Vercel deployments).
-
----
+AccessGate is a modern, secure event ticketing platform built with **Next.js 14** (App Router) that provides comprehensive event management, ticketing, and real-time validation capabilities.
 
 ## 🚀 Key Features
 
-### 🎫 Ticketing
-- Create & manage events and ticket types  
-- Generate unique ticket codes / QR images per ticket  
-- Secure ticket validation & single check-in prevention
+### 🎫 Ticketing & Event Management
+- **Event Creation & Management** - Create events with multiple ticket types, pricing, and capacity
+- **Smart Ticket Generation** - Generate unique ticket codes with QR codes for secure validation
+- **Real-time Availability** - Live ticket inventory tracking with sold-out prevention
+- **Batch Ticket Creation** - Create multiple tickets for events with automated email delivery
 
-### 🔐 Authentication & Security
-- JWT-based authentication (access + refresh tokens)  
-- Role-based authorization (Admin, Organizer, Vendor, Attendee)  
-- Strong validation using **Zod** + **React Hook Form**  
-- Password hashing (bcrypt / argon2 recommended)
+### 🔐 Security & Authentication
+- **JWT-based Authentication** - Secure token-based authentication system
+- **Role-based Access Control** - Admin-level access control for event management
+- **Registration Key System** - Secure admin registration with invitation keys
+- **Password Hashing** - bcrypt for secure password storage
 
-### 📱 Check-in & Analytics
-- Gate validation endpoint (QR/token validation)  
-- Mark check-in and record audit logs  
-- Dashboard with live check-in counts and simple analytics
+### 📊 Analytics & Reporting
+- **Real-time Dashboard** - Comprehensive event statistics and revenue tracking
+- **Check-in Analytics** - Live check-in rates and attendance metrics
+- **Revenue Reporting** - Total revenue calculation across all events
+- **Ticket Sales Tracking** - Real-time sales data per ticket type
 
-### 🛠 Admin Tools
-- Event creation & management UI  
-- Ticket issuance & list view  
-- Gate validation page for scanning / pasting tokens
+### 🎯 Validation & Check-in
+- **QR Code Validation** - Secure ticket validation using unique QR codes
+- **Real-time Check-in** - Instant ticket validation with duplicate prevention
+- **Multi-format Support** - Support for manual code entry and QR scanning
+- **Check-in Audit Trail** - Complete history of all validations
 
----
-
-## 🧩 Tech Stack
+## 🛠 Tech Stack
 
 **Frontend & Backend**
-- Next.js (App Router, TypeScript) — frontend + API route handlers (`app/api`)  
-- Material UI v5 (MUI) for UI components & icons  
-- React Hook Form + Zod for form validation  
-- Redux Toolkit + RTK Query (optional, for client-side state & API cache)  
-- react-hot-toast for notifications
+- **Next.js 14** - App Router with TypeScript for full-stack development
+- **React 18** - Modern React with hooks and functional components
+- **MongoDB with Mongoose** - Database with object modeling
+- **JWT** - JSON Web Tokens for secure authentication
 
-**Backend / Persistence**
-- MongoDB Atlas (cloud) + Mongoose (models & queries)  
-- JWT, bcrypt for auth & password hashing
+**Development & Deployment**
+- **TypeScript** - Type-safe development
+- **Axios** - HTTP client for API communication
+- **Vercel** - Recommended deployment platform
 
-**Dev / Deploy**
-- Local dev: `npm run dev` (Next.js dev server)  
-- Recommended deploy: Vercel (Next.js) + MongoDB Atlas (production DB)
+## 📁 Project Structure
 
----
-
-## 📁 Project Structure (recommended)
-
+```
 accessgate/
-├── app/ # Next.js App Router pages + UI
-│ ├── api/ # Next.js Route Handlers (backend)
-│ │ ├── v1/
-│ │ │ ├── auth/ # sign up / login / refresh
-│ │ │ ├── events/ # create event, list events
-│ │ │ ├── tickets/ # create ticket, validate token
-│ │ │ └── stats/ # check-in metrics
-│ ├── merchant/ # merchant UI routes
-│ ├── admin/ # admin / organizer UI
-│ └── gate/ # gate validation UI
-├── src/
-│ ├── lib/ # shared helpers (mongo connection, token service)
-│ ├── models/ # Mongoose models (Event, Ticket, Checkin, User)
-│ ├── validators/ # Zod schemas shared between client/server
-│ └── components/ # React components (MUI)
-├── public/ # static assets (sample QR image, logo)
-├── .env.example
-├── package.json
-└── README.md
+├── app/                    # Next.js App Router
+│   ├── api/               # API Route Handlers
+│   │   ├── admin/         # Admin management endpoints
+│   │   ├── auth/          # Authentication endpoints
+│   │   ├── events/        # Event management endpoints
+│   │   └── tickets/       # Ticket operations endpoints
+│   ├── docs/              # API documentation (Swagger UI)
+│   └── ...               # Other app routes
+├── app/api/models/        # MongoDB Mongoose models
+│   ├── Admin.ts          # Admin user model
+│   ├── Event.ts          # Event and ticket types model
+│   └── Ticket.ts         # Ticket model
+├── lib/                  # Shared utilities
+│   ├── auth.ts          # Authentication helpers
+│   ├── db.ts            # Database connection
+│   ├── email.ts         # Email service
+│   └── qrcode.ts        # QR code generation
+├── public/              # Static assets
+│   └── openapi.yaml    # API documentation
+└── ...                 # Configuration files
+```
 
+## 🔧 Installation & Setup
 
+### Prerequisites
+- Node.js 18+ LTS
+- npm, yarn, or pnpm
+- MongoDB (Atlas recommended for production)
 
-> Notes:
-> - Keep server-side logic inside `app/api` route handlers for Vercel compatibility.
-> - If you prefer a separate backend later, the same Express + Mongoose code can be migrated to a `/server` folder.
-
----
-
-## 🔧 Prerequisites
-
-- Node.js >= 18 LTS  
-- npm or pnpm  
-- MongoDB Atlas account (or local MongoDB / Docker)
-
----
-
-## 🛠 Installation & Local Setup
-
-### 1. Clone the repo
+### 1. Clone the Repository
+```bash
 git clone https://github.com/azeezwaris17/access-gate.git
 cd access-gate
-2. Install dependencies
+```
 
+### 2. Install Dependencies
+```bash
 npm install
-3. Create environment variables
-Create a .env.local file in the project root (Next reads .env.local automatically):
+# or
+yarn install
+# or
+pnpm install
+```
 
-env
-Copy code
-# MongoDB
-MONGODB_URI="mongodb+srv://<username>:<password>@cluster0.xyz.mongodb.net/accessgate?retryWrites=true&w=majority"
+### 3. Environment Configuration
+Create `.env.local` file in the project root:
 
-# JWT
-JWT_SECRET="replace_with_a_strong_secret"
-ACCESS_TOKEN_EXPIRES_IN="15m"
-REFRESH_TOKEN_EXPIRES_IN="7d"
+```env
+# MongoDB Connection
+MONGODB_URI="mongodb+srv://username:password@cluster.mongodb.net/accessgate?retryWrites=true&w=majority"
 
-# App
+# JWT Configuration
+JWT_SECRET="your-super-secure-jwt-secret-key-here"
+
+# Application Settings
 NEXT_PUBLIC_APP_NAME="AccessGate"
-NEXT_PUBLIC_API_BASE_URL="http://localhost:3000/api/v1"
+NEXT_PUBLIC_API_URL="/api"
 
-# Admin API key (optional)
-ADMIN_API_KEY="replace_with_admin_api_key"
-Tip: For local development you can use a free MongoDB Atlas cluster. See Atlas quick start.
+# Email Service (Optional)
+EMAIL_SERVICE_API_KEY="your-email-service-key"
+```
 
-4. Seed or create test data (optional)
-If you have a scripts/seed.ts or similar, run:
-npm run seed
+### 4. Database Setup
+The application will automatically create necessary collections when you first run it. For initial admin access, you'll need to use the registration key system.
 
-5. Run the app
+### 5. Install Documentation Dependencies
+```bash
+npm install swagger-ui-react swagger-ui-dist
+```
 
+### 6. Run the Application
+```bash
 npm run dev
-# open http://localhost:3000
-🔌 API Endpoints (high level)
-All routes are under /api/v1/* as Next.js route handlers (see app/api/v1/*)
+```
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-Auth
+### 7. Access API Documentation
+Visit [http://localhost:3000/docs](http://localhost:3000/docs) to explore the complete API documentation.
 
-POST /api/v1/auth/signup — register
+## 📡 API Endpoints
 
-POST /api/v1/auth/login — authenticate & return tokens
+### Authentication
+- `POST /api/auth/register` - Register new admin with registration key
+- `POST /api/auth/login` - Admin login
 
-POST /api/v1/auth/refresh — refresh access token
+### Admin Management
+- `GET /api/admin/keys` - Get all registration keys
+- `POST /api/admin/keys` - Generate new registration key
 
-Events & Tickets
+### Event Management
+- `GET /api/events` - Get all events with filtering and pagination
+- `POST /api/events/create-event` - Create new event
+- `GET /api/events/{eventId}` - Get specific event details
+- `PUT /api/events/{eventId}/edit-event` - Update event details
+- `PATCH /api/events/{eventId}/update-event-status` - Update event status
 
-POST /api/v1/events — create event (admin/organizer)
+### Ticket Operations
+- `POST /api/events/{eventId}/create-ticket` - Create ticket for event
+- `POST /api/tickets/buy-ticket` - Purchase ticket (public endpoint)
+- `POST /api/tickets/check-in` - Check in ticket
+- `POST /api/tickets/validate-ticket-by-code` - Validate ticket
 
-GET /api/v1/events — list events
+### Analytics
+- `GET /api/events/analytics` - Get comprehensive analytics
+- `GET /api/events/get-events-stat` - Get events statistics
+- `GET /api/events/search-event` - Search events
 
-POST /api/v1/events/:eventId/tickets — issue a ticket (returns ticket token & QR)
+## 🔐 Authentication Flow
 
-GET /api/v1/tickets/validate?token=... — validate token & mark check-in
+1. **Admin Registration**: Requires valid registration key from existing admin
+2. **Login**: Email and password authentication returning JWT token
+3. **Protected Routes**: Include `Authorization: Bearer <token>` header
+4. **Token Verification**: Automatic token validation for all protected endpoints
 
-Stats
+## 🎫 Ticket Generation & Validation
 
-GET /api/v1/events/:eventId/stats — check-in counts & summary
+### Ticket Creation
+- Unique ticket codes generated in format: `AG-timestamp-randomHex`
+- QR codes generated for each ticket
+- Automatic email delivery to attendees
+- Real-time inventory tracking
 
-Each endpoint returns structured JSON with HTTP status codes. Authorization is required where appropriate (use Authorization: Bearer <token>).
+### Ticket Validation
+- QR code or manual code validation
+- Duplicate check-in prevention
+- Real-time status updates
+- Comprehensive audit trail
 
-✅ How the Ticket Token Works (summary)
-Each ticket token is generated as BASE64URL(HMAC_SHA256(UUID, SERVER_SECRET) + ":" + UUID) to prevent predictability.
+## 📊 Analytics Features
 
-On validation the server:
+### Event Statistics
+- Total revenue calculation
+- Ticket sales per type
+- Check-in rates and attendance
+- Available ticket counts
 
-Verifies the HMAC vs SERVER_SECRET
+### Real-time Dashboard
+- Live event status tracking
+- Revenue analytics
+- Attendance metrics
+- Performance insights
 
-Looks up the ticket by UUID
+## 🚀 Deployment
 
-Checks checkedIn state to prevent duplicates
+### Vercel Deployment (Recommended)
+1. Push your code to GitHub
+2. Connect your repository to Vercel
+3. Configure environment variables in Vercel dashboard
+4. Deploy automatically on git push
 
-Marks check-in and returns a PASS result or appropriate error
+### Environment Variables for Production
+```env
+MONGODB_URI="your-production-mongodb-uri"
+JWT_SECRET="your-production-jwt-secret"
+NEXTAUTH_URL="https://yourdomain.com"
+```
 
-Security note: For production, keep SERVER_SECRET in a secure secrets manager and consider HSM signing or short-lived tokens.
+## 🧪 Testing
 
-🧪 Testing
-Unit tests (Jest) for token generation and validation logic
-
-Integration tests (supertest) for core API behaviour (issue ticket → validate ticket)
-
-Run tests:
+Run the test suite:
+```bash
 npm test
+```
 
-📬 Postman / API collection
-A Postman collection for quick testing is included at:
-/docs/AccessGate.postman_collection.json
-Import into Postman / Insomnia to test flows: create event → issue ticket → validate token.
+## 📚 API Documentation
 
-📝 Contributing
+The complete API documentation is available at `/docs` endpoint and includes:
+- Interactive Swagger UI
+- Request/response examples
+- Authentication requirements
+- Error code documentation
+- Live testing capability
 
-📄 License
-This project is released under the MIT License. 
+## 🤝 Contributing
 
-📬 Contact
-Azeez Waris
-Email: azeezwaris17@gmail.com
-GitHub: https://github.com/azeezwaris17
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+- **Documentation**: Visit `/docs` for API documentation
+- **Issues**: Use GitHub Issues for bug reports and feature requests
+- **Email**: azeezwaris17@gmail.com
+
+## 📞 Contact
+
+**Azeez Waris**  
+- Email: azeezwaris17@gmail.com  
+- GitHub: [@azeezwaris17](https://github.com/azeezwaris17)  
+- Project Repository: [AccessGate](https://github.com/azeezwaris17/access-gate)
+
+---
+
+**AccessGate** - Modern event ticketing made simple. Built with ❤️ using Next.js and MongoDB.

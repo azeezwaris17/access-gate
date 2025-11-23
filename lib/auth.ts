@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const ADMIN_KEY_SECRET = process.env.ADMIN_KEY_SECRET || 'admin-secret-change-in-production';
@@ -40,7 +41,6 @@ export function generateRegistrationKey(): string {
 
 export function generateTicketToken(ticketId: string, eventId: string): string {
   // Generate a HMAC-based token for ticket validation
-  const crypto = require('crypto');
   const data = `${ticketId}:${eventId}:${Date.now()}`;
   const hash = crypto
     .createHmac('sha256', ADMIN_KEY_SECRET)
@@ -51,7 +51,6 @@ export function generateTicketToken(ticketId: string, eventId: string): string {
 
 export function validateTicketToken(token: string): { ticketId: string; eventId: string } | null {
   try {
-    const crypto = require('crypto');
     const [ticketId, eventId, timestamp, hash] = token.split(':');
     const data = `${ticketId}:${eventId}:${timestamp}`;
     const expectedHash = crypto

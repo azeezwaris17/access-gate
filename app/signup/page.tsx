@@ -35,8 +35,9 @@ import {
   Lock,
   Key,
   Info,
-  AdminPanelSettings,
+  // AdminPanelSettings,
 } from "@mui/icons-material";
+import Image from "next/image";
 
 // Zod schema for form validation
 const signUpSchema = z
@@ -112,7 +113,7 @@ export default function SignUpPage() {
 
     try {
       // API call using the configured api service
-      const response = await api.post("/auth/register", { // Note: removed /api prefix
+      const response = await api.post("/v1/auth/register", { 
         fullName: data.fullName.trim(),
         email: data.email.toLowerCase().trim(),
         password: data.password,
@@ -245,12 +246,19 @@ export default function SignUpPage() {
                   width: 80,
                   height: 80,
                   borderRadius: 2,
-                  background:
-                    "linear-gradient(45deg, #667eea 0%, #764ba2 100%)",
+                  // background:
+                  //   "linear-gradient(45deg, #667eea 0%, #764ba2 100%)",
                   mb: 3,
                 }}
               >
-                <AdminPanelSettings sx={{ fontSize: 40, color: "white" }} />
+                {/* <AdminPanelSettings sx={{ fontSize: 40, color: "white" }} /> */}
+                   <Image
+                              src="/access-gate-favicon-2.png"
+                              alt="Access Gate Logo"
+                              width={60}
+                              height={60}
+                              style={{ objectFit: 'contain' }}
+                            />
               </Paper>
 
               <Typography
