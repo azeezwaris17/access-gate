@@ -1,5 +1,5 @@
 "use client";
-import React from 'react'
+import React from "react";
 import { useAuthStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -31,7 +31,7 @@ import {
 import {
   Menu as MenuIcon,
   Logout,
-  Shield,
+  // Shield,
   Event,
   Add,
   List as ListIcon,
@@ -39,6 +39,7 @@ import {
   ExpandMore,
   Dashboard,
 } from "@mui/icons-material";
+import Image from "next/image";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -125,14 +126,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       icon: <Event />,
       children: [
         {
-          label: "Create Event",
-          icon: <Add />,
-          href: "/dashboard/events/create-event",
-        },
-        {
           label: "All Events",
           icon: <ListIcon />,
           href: "/dashboard/events/all-events",
+        },
+        {
+          label: "Create Event",
+          icon: <Add />,
+          href: "/dashboard/events/create-event",
         },
       ],
     },
@@ -175,7 +176,16 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         }}
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-          <Avatar
+          <Image
+            src="/access-gate-favicon-2.png"
+            alt="Access Gate Logo"
+            width={48}
+            height={48}
+            style={{
+              objectFit: "contain",
+            }}
+          />
+          {/* <Avatar
             sx={{
               width: 48,
               height: 48,
@@ -184,7 +194,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             }}
           >
             <Shield />
-          </Avatar>
+          </Avatar> */}
           <Box>
             <Typography variant="h6" fontWeight="bold">
               AccessGate
@@ -336,7 +346,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   );
 
   if (!token) {
-    return null; 
+    return null;
   }
 
   return (
@@ -438,7 +448,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 transformOrigin={{ horizontal: "right", vertical: "top" }}
                 anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
               >
-
                 <Divider />
                 <MenuItem onClick={handleLogout}>
                   <ListItemIcon>

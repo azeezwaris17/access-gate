@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   title: 'AccessGate - Event Ticketing System',
   description: 'Secure event ticketing and access control',
   icons: {
-    icon: '/favicon.svg', 
+    icon: '/access-gate-favicon-2.png', 
   },
 }
 

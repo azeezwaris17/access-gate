@@ -1,4 +1,3 @@
-// app/gate/page.tsx
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -73,18 +72,19 @@ interface ValidationResult {
     attendeeName: string;
     attendeeEmail: string;
     status: string;
+    checkedInAt?: Date;
     event: {
       id: string;
       name: string;
-      date: string;
-      venue: string;
-      ticketTypes: Array<{
-        name: string;
-        price: number;
-      }>;
+      date: Date;
+      time: string;
+      location: string;
     };
+    ticketType: string;
+    price: number;
   };
   error?: string;
+  message?: string;
 }
 
 interface EventDetails {
@@ -109,21 +109,19 @@ interface EventOption {
   status: "active" | "upcoming" | "completed";
 }
 
-interface ApiEvent {
-  _id: string;
+interface ApiEventResponse {
+  _id?: string;
+  id?: string;
   name: string;
   date: string;
-  location: string;
-  description: string;
-  computedStatus: string;
-  totalTickets: number;
-  totalSold: number;
-  checkInCount: number;
-  ticketTypes: Array<{
-    name: string;
-    price: number;
-    quantity: number;
-  }>;
+  computedStatus?: string;
+  status?: string;
+}
+
+interface ApiEventsResponse {
+  success?: boolean;
+  events?: ApiEventResponse[];
+  data?: ApiEventResponse[];
 }
 
 interface ApiError {
@@ -199,27 +197,27 @@ const PageHeader: React.FC<PageHeaderProps> = ({
  */
 const Footer: React.FC = () => {
   return (
-  <Box
-  sx={{
-    display: "flex",
-    justifyContent: "flex-end", 
-    mt: 3,
-  }}
->
-  <Link
-    href="/dashboard"
-    variant="body2"
-    sx={{
-      textDecoration: "none",
-      color: "primary.main",
-      "&:hover": {
-        color: "primary.dark",
-      },
-    }}
-  >
-    Go to Dashboard
-  </Link>
-</Box>
+    <Box
+      sx={{
+        display: "flex",
+        justifyContent: "flex-end",
+        mt: 3,
+      }}
+    >
+      <Link
+        href="/dashboard"
+        variant="body2"
+        sx={{
+          textDecoration: "none",
+          color: "primary.main",
+          "&:hover": {
+            color: "primary.dark",
+          },
+        }}
+      >
+        Go to Dashboard
+      </Link>
+    </Box>
   );
 };
 
@@ -553,17 +551,31 @@ const SuccessStep: React.FC<SuccessStepProps> = ({
             </Box>
           </Box>
 
-          <Box sx={{ display: "flex", alignItems: "center" }}>
+          <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
             <ConfirmationNumber sx={{ mr: 2, color: "success.main" }} />
             <Box>
               <Typography variant="body1">
-                {ticket.event?.ticketTypes?.[0]?.name || "General Admission"}
+                {ticket.ticketType}
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 Ticket Type
               </Typography>
             </Box>
           </Box>
+
+          {ticket.checkedInAt && (
+            <Box sx={{ display: "flex", alignItems: "center" }}>
+              <CheckCircle sx={{ mr: 2, color: "success.main" }} />
+              <Box>
+                <Typography variant="body1">
+                  Checked in at {new Date(ticket.checkedInAt).toLocaleTimeString()}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Check-in Time
+                </Typography>
+              </Box>
+            </Box>
+          )}
         </Paper>
 
         <Button
@@ -630,29 +642,44 @@ function GateValidationPage() {
     fetchAvailableEvents();
   }, []);
 
-  /**
-   * Fetch available events for the admin using the new get-all-events API
-   */
   const fetchAvailableEvents = async () => {
     try {
       setIsLoading(true);
-      const response = await api.get("/events/get-all-events");
+      // Use the main events endpoint with status=active filter
+      const response = await api.get<ApiEventsResponse | ApiEventResponse[]>("/v1/events?status=active&limit=100");
 
-      if (response.data && Array.isArray(response.data)) {
-        const events: EventOption[] = response.data.map((event: ApiEvent) => ({
-          id: event._id,
-          name: event.name,
-          date: event.date,
-          status: event.computedStatus as "active" | "upcoming" | "completed",
-        }));
+      console.log("API Response:", response.data); // Debug log
+
+      // Extract events from the response with proper typing
+      let eventsData: ApiEventResponse[] | undefined;
+
+      if (Array.isArray(response.data)) {
+        // If response.data is directly an array
+        eventsData = response.data;
+      } else if (response.data && 'events' in response.data && Array.isArray(response.data.events)) {
+        // If response.data has an events property that is an array
+        eventsData = response.data.events;
+      } else if (response.data && 'data' in response.data && Array.isArray(response.data.data)) {
+        // If response.data has a data property that is an array
+        eventsData = response.data.data;
+      } else if (response.data && 'success' in response.data) {
+        // If it's a success response but no events array found
+        eventsData = [];
+      }
+
+      if (Array.isArray(eventsData)) {
+        const events: EventOption[] = eventsData.map((event: ApiEventResponse) => ({
+          id: event._id || event.id || '',
+          name: event.name || 'Unnamed Event',
+          date: event.date || new Date().toISOString(),
+          status: (event.computedStatus || event.status || "active") as "active" | "upcoming" | "completed",
+        })).filter(event => event.id && event.name); // Filter out invalid events
 
         setAvailableEvents(events);
-        console.log(
-          `✅ Loaded ${events.length} events from get-all-events API`
-        );
+        console.log(`✅ Loaded ${events.length} events from API`);
       } else {
         setAvailableEvents([]);
-        console.warn("No events data found in response");
+        console.warn("No events data found in response:", response.data);
       }
     } catch (error: unknown) {
       console.error("Failed to fetch events:", error);
@@ -661,6 +688,7 @@ function GateValidationPage() {
       if (apiError.response?.status !== 401) {
         toast.error("Failed to load available events");
       }
+      setAvailableEvents([]);
     } finally {
       setIsLoading(false);
     }
@@ -719,33 +747,36 @@ function GateValidationPage() {
     setValidationResult({ status: "idle" });
 
     try {
-      const response = await api.post("/tickets/validate-ticket-by-code", {
+      const response = await api.post("/v1/tickets/check-in", {
         ticketCode: data.ticketCode.trim().toUpperCase(),
         eventId: eventDetails?.id,
         validatedBy: admin?.id,
       });
 
-      setValidationResult({
-        status: "success",
-        ticket: response.data.ticket,
-      });
+      if (response.data.success) {
+        setValidationResult({
+          status: "success",
+          ticket: response.data.ticket,
+          message: response.data.message,
+        });
 
-      setCurrentStep("success");
-      toast.success(
-        `Ticket validated for ${response.data.ticket.attendeeName}`
-      );
+        setCurrentStep("success");
+        toast.success(response.data.message || `Checked in ${response.data.ticket.attendeeName} successfully!`);
 
-      setTimeout(() => {
-        setValidationResult({ status: "idle" });
-        setCurrentStep("ticket-validation");
-      }, 10000);
+        // Auto-return to validation after 5 seconds
+        setTimeout(() => {
+          setValidationResult({ status: "idle" });
+          setCurrentStep("ticket-validation");
+        }, 5000);
+      } else {
+        throw new Error(response.data.error || "Check-in failed");
+      }
     } catch (error: unknown) {
       console.error("Ticket validation error:", error);
 
       const apiError = error as ApiError;
       if (apiError.response?.status !== 401) {
-        const errorMessage =
-          apiError.response?.data?.error || "Ticket validation failed";
+        const errorMessage = apiError.response?.data?.error || "Ticket validation failed";
 
         setValidationResult({
           status: "error",
@@ -784,14 +815,13 @@ function GateValidationPage() {
       case "event-selection":
         return (
           <>
-          
-          <EventSelectionStep
-            onEventSelect={onEventSelect}
-            availableEvents={availableEvents}
-            isLoading={isLoading}
-          />
+            <EventSelectionStep
+              onEventSelect={onEventSelect}
+              availableEvents={availableEvents}
+              isLoading={isLoading}
+            />
 
-          <Footer />
+            <Footer />
           </>
         );
 
@@ -835,12 +865,14 @@ function GateValidationPage() {
         background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
       }}
     >
-      <Box sx={{ 
-        alignSelf: "flex-end", 
-        textAlign: "center", 
-        mt: 2,
-        mb: 2 
-      }}>
+      <Box
+        sx={{
+          alignSelf: "flex-end",
+          textAlign: "center",
+          mt: 2,
+          mb: 2,
+        }}
+      >
         <Typography variant="body2" color="text.secondary">
           Signed in as: {admin?.fullName}
         </Typography>
@@ -848,7 +880,6 @@ function GateValidationPage() {
 
       <Box sx={{ width: "100%" }}>
         {renderCurrentStep()}
-        {/* <Footer /> */}
       </Box>
     </Container>
   );

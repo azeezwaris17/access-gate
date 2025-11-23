@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuthStore } from "@/lib/store";
 import toast from "react-hot-toast";
-import api from "@/lib/services/api"; // Import API service
-import { withAuth } from "@/lib/hocs/withAuth"; // Import HOC
+import api from "@/lib/services/api";
+import { withAuth } from "@/lib/hocs/withAuth";
 
 // Material UI Components
 import {
@@ -19,8 +19,6 @@ import {
   CircularProgress,
   Paper,
   Avatar,
-  useTheme,
-  Divider,
   Alert,
   Snackbar,
 } from "@mui/material";
@@ -35,7 +33,6 @@ import {
   CalendarToday,
   Person,
   History,
-  Warning,
 } from "@mui/icons-material";
 
 /**
@@ -53,8 +50,7 @@ interface RegistrationKey {
  * Manages admin registration key generation and tracking
  */
 function AdminKeysPage() {
-  const { admin } = useAuthStore(); // We can access admin info
-  const theme = useTheme();
+  const { admin } = useAuthStore();
   const [keys, setKeys] = useState<RegistrationKey[]>([]);
   const [newKey, setNewKey] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -75,17 +71,20 @@ function AdminKeysPage() {
   const fetchKeys = async () => {
     setIsLoading(true);
     try {
-      // Use API service - automatically includes auth token
-      const response = await api.get("/admin/keys"); // Removed /api prefix
+      const response = await api.get("/admin/keys");
 
       if (response.data) {
         setKeys(response.data.keys || []);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to fetch keys:", error);
-      // 401 errors are automatically handled by the API service interceptor
-      if (error.response?.status !== 401) {
-        toast.error(error.response?.data?.error || "Failed to load admin keys");
+      if (typeof error === 'object' && error !== null && 'response' in error) {
+        const axiosError = error as { response?: { status?: number; data?: { error?: string } } };
+        if (axiosError.response?.status !== 401) {
+          toast.error(axiosError.response?.data?.error || "Failed to load admin keys");
+        }
+      } else {
+        toast.error("Failed to load admin keys");
       }
     } finally {
       setIsLoading(false);
@@ -98,19 +97,22 @@ function AdminKeysPage() {
   const generateNewKey = async () => {
     setIsGenerating(true);
     try {
-      // Use API service - automatically includes auth token
-      const response = await api.post("/admin/keys", {}); // Removed /api prefix
+      const response = await api.post("/api/admin/keys", {});
 
       if (response.data) {
         setNewKey(response.data.key);
         setKeys(response.data.allKeys || []);
         toast.success("New admin key generated successfully!");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to generate key:", error);
-      // 401 errors are automatically handled by the API service interceptor
-      if (error.response?.status !== 401) {
-        toast.error(error.response?.data?.error || "Failed to generate key");
+      if (typeof error === 'object' && error !== null && 'response' in error) {
+        const axiosError = error as { response?: { status?: number; data?: { error?: string } } };
+        if (axiosError.response?.status !== 401) {
+          toast.error(axiosError.response?.data?.error || "Failed to generate key");
+        }
+      } else {
+        toast.error("Failed to generate key");
       }
     } finally {
       setIsGenerating(false);
@@ -128,6 +130,7 @@ function AdminKeysPage() {
       setTimeout(() => setShowCopiedToast(false), 2000);
     } catch (error) {
       toast.error("Failed to copy to clipboard");
+      console.log(error)
     }
   };
 

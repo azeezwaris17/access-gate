@@ -1,0 +1,853 @@
+# public/openapi.yaml
+openapi: 3.0.3
+info:
+  title: AccessGate API
+  version: 0.1.0
+  description: Event management and ticketing system API
+  contact:
+    name: API Support
+    email: azeezwaris17@gmail.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+servers:
+  - url: /api/v1
+    description: Development server
+tags:
+  - name: Authentication
+    description: Admin authentication and registration endpoints
+  - name: Admin Management
+    description: Admin registration key management
+  - name: Events
+    description: Event creation, management, and listing
+  - name: Event Operations
+    description: Operations on specific events
+  - name: Analytics
+    description: Event analytics and statistics
+  - name: Tickets
+    description: Ticket operations and validation
+  - name: Public
+    description: Public endpoints accessible without authentication
+
+paths:
+  # ==================== AUTHENTICATION ENDPOINTS ====================
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Admin login
+      description: Authenticate admin with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: "admin@example.com"
+              password: "password123"
+      responses:
+        '200':
+          description: Successfully logged in
+          content:
+            application/json:
+              example:
+                token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                admin:
+                  id: "507f1f77bcf86cd799439011"
+                  fullName: "John Doe"
+                  email: "admin@example.com"
+        '400':
+          description: Missing required fields
+        '401':
+          description: Invalid credentials
+        '500':
+          description: Internal server error
+
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register new admin
+      description: Register a new admin using a registration key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              fullName: "Jane Smith"
+              email: "jane@example.com"
+              password: "password123"
+              registrationKey: "ABCD-1234-EFGH-5678"
+      responses:
+        '200':
+          description: Successfully registered
+          content:
+            application/json:
+              example:
+                token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                admin:
+                  id: "507f1f77bcf86cd799439012"
+                  fullName: "Jane Smith"
+                  email: "jane@example.com"
+        '400':
+          description: Missing fields or invalid registration key format
+        '500':
+          description: Internal server error
+
+  # ==================== ADMIN MANAGEMENT ENDPOINTS ====================
+  /admin/keys:
+    get:
+      tags:
+        - Admin Management
+      summary: Get all registration keys
+      description: Retrieve all registration keys for the authenticated admin
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Successfully retrieved registration keys
+          content:
+            application/json:
+              example:
+                keys:
+                  - key: "ABCD-1234-EFGH-5678"
+                    createdAt: "2024-01-15T10:30:00Z"
+        '401':
+          description: Unauthorized - Invalid or missing token
+        '404':
+          description: Admin not found
+        '500':
+          description: Internal server error
+    post:
+      tags:
+        - Admin Management
+      summary: Generate new registration key
+      description: Generate a new registration key for the authenticated admin
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Successfully generated registration key
+          content:
+            application/json:
+              example:
+                key: "ABCD-1234-EFGH-5678"
+                allKeys:
+                  - key: "ABCD-1234-EFGH-5678"
+                    createdAt: "2024-01-15T10:30:00Z"
+        '401':
+          description: Unauthorized - Invalid or missing token
+        '404':
+          description: Admin not found
+        '500':
+          description: Internal server error
+
+  # ==================== EVENT MANAGEMENT ENDPOINTS ====================
+  /events:
+    get:
+      tags:
+        - Events
+      summary: Get all events with filtering and pagination
+      description: Retrieve all events for the authenticated admin with optional filtering and pagination
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [all, active, completed, cancelled]
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 10
+      responses:
+        '200':
+          description: Successfully retrieved events
+          content:
+            application/json:
+              example:
+                success: true
+                events: []
+                pagination:
+                  currentPage: 1
+                  totalPages: 1
+                  totalEvents: 0
+                  hasNext: false
+                  hasPrev: false
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+
+  /events/create-event:
+    post:
+      tags:
+        - Events
+      summary: Create new event
+      description: Create a new event with ticket types
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEventRequest'
+            example:
+              name: "Tech Conference 2024"
+              date: "2024-06-15"
+              time: "09:00"
+              location: "Convention Center"
+              description: "Annual technology conference"
+              ticketTypes:
+                - name: "General Admission"
+                  price: 100
+                  quantity: 200
+                  description: "Standard access"
+      responses:
+        '200':
+          description: Successfully created event
+          content:
+            application/json:
+              example:
+                success: true
+                message: "Event created successfully"
+                event:
+                  _id: "507f1f77bcf86cd799439013"
+                  name: "Tech Conference 2024"
+                  date: "2024-06-15"
+                  time: "09:00"
+                  location: "Convention Center"
+                  status: "active"
+        '400':
+          description: Missing required fields or invalid ticket types
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+
+  /events/search-event:
+    get:
+      tags:
+        - Events
+      summary: Search events
+      description: Search events by name, location, or description
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Successfully searched events
+          content:
+            application/json:
+              example:
+                success: true
+                events: []
+                total: 0
+        '400':
+          description: Search query required
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+
+  # ==================== EVENT OPERATIONS ENDPOINTS ====================
+  /events/{eventId}:
+    get:
+      tags:
+        - Event Operations
+      summary: Get event details
+      description: Retrieve detailed information for a specific event
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully retrieved event details
+          content:
+            application/json:
+              example:
+                success: true
+                event:
+                  _id: "507f1f77bcf86cd799439013"
+                  name: "Tech Conference 2024"
+                  date: "2024-06-15"
+                  time: "09:00"
+                  location: "Convention Center"
+                  status: "active"
+                  totalRevenue: 1000.00
+                  totalTickets: 200
+                  totalSold: 10
+                  totalAvailable: 190
+        '401':
+          description: Unauthorized
+        '404':
+          description: Event not found or access denied
+        '500':
+          description: Internal server error
+
+  /events/{eventId}/create-ticket:
+    post:
+      tags:
+        - Event Operations
+      summary: Create ticket for event
+      description: Create a new ticket for a specific event
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTicketRequest'
+            example:
+              eventId: "507f1f77bcf86cd799439013"
+              ticketTypeId: "507f1f77bcf86cd799439014"
+              attendeeName: "John Doe"
+              attendeeEmail: "john@example.com"
+      responses:
+        '201':
+          description: Successfully created ticket
+          content:
+            application/json:
+              example:
+                _id: "507f1f77bcf86cd799439015"
+                eventId: "507f1f77bcf86cd799439013"
+                ticketTypeId: "507f1f77bcf86cd799439014"
+                attendeeName: "John Doe"
+                attendeeEmail: "john@example.com"
+                ticketCode: "AG-1705314600000-1A2B3C4D"
+                status: "valid"
+        '400':
+          description: Missing required fields
+        '401':
+          description: Unauthorized
+        '404':
+          description: Event not found
+        '500':
+          description: Internal server error
+
+  /events/{eventId}/edit-event:
+    put:
+      tags:
+        - Event Operations
+      summary: Update event
+      description: Update event details
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEventRequest'
+      responses:
+        '200':
+          description: Successfully updated event
+          content:
+            application/json:
+              example:
+                success: true
+                message: "Event updated successfully"
+                event:
+                  _id: "507f1f77bcf86cd799439013"
+                  name: "Updated Conference Name"
+                  date: "2024-06-15"
+                  time: "10:00"
+                  location: "New Venue"
+                  status: "active"
+        '400':
+          description: Cannot edit completed events
+        '401':
+          description: Unauthorized
+        '404':
+          description: Event not found or access denied
+        '500':
+          description: Internal server error
+
+  /events/{eventId}/update-event-status:
+    patch:
+      tags:
+        - Event Operations
+      summary: Update event status
+      description: Update the status of an event
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [active, completed, cancelled]
+            example:
+              status: "cancelled"
+      responses:
+        '200':
+          description: Successfully updated event status
+          content:
+            application/json:
+              example:
+                success: true
+                message: "Event status updated to cancelled"
+                event:
+                  _id: "507f1f77bcf86cd799439013"
+                  name: "Tech Conference 2024"
+                  status: "cancelled"
+        '400':
+          description: Invalid status
+        '401':
+          description: Unauthorized
+        '404':
+          description: Event not found or access denied
+        '500':
+          description: Internal server error
+
+  /events/{eventId}/get-selected-event-details:
+    get:
+      tags:
+        - Event Operations
+      summary: Get detailed event statistics
+      description: Retrieve comprehensive statistics and details for a specific event
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully retrieved event details
+          content:
+            application/json:
+              example:
+                _id: "507f1f77bcf86cd799439013"
+                name: "Tech Conference 2024"
+                date: "2024-06-15"
+                time: "09:00"
+                location: "Convention Center"
+                totalRevenue: 1000.00
+                totalTickets: 200
+                totalSold: 10
+                totalAvailable: 190
+                checkInCount: 5
+                totalTicketCount: 10
+                ticketTypes: []
+        '401':
+          description: Unauthorized
+        '404':
+          description: Event not found or access denied
+        '500':
+          description: Internal server error
+
+  # ==================== ANALYTICS ENDPOINTS ====================
+  /events/analytics:
+    get:
+      tags:
+        - Analytics
+      summary: Get events analytics
+      description: Retrieve comprehensive analytics for all events
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Successfully retrieved analytics
+          content:
+            application/json:
+              example:
+                totalEvents: 5
+                totalTickets: 100
+                validTickets: 80
+                checkedInTickets: 20
+                revokedTickets: 0
+                totalRevenue: 2500.00
+                eventAnalytics: []
+                recentCheckIns: []
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+
+  /events/get-events-stat:
+    get:
+      tags:
+        - Analytics
+      summary: Get events statistics
+      description: Retrieve statistics for all events
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Successfully retrieved statistics
+          content:
+            application/json:
+              example:
+                success: true
+                statistics:
+                  totalEvents: 5
+                  activeEvents: 3
+                  completedEvents: 2
+                  cancelledEvents: 0
+                  totalRevenue: 2500.00
+                  totalTicketsSold: 25
+                  totalTicketsAvailable: 175
+                  recentEvents: []
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+
+  # ==================== TICKET ENDPOINTS ====================
+  /tickets/check-in:
+    post:
+      tags:
+        - Tickets
+      summary: Check in ticket
+      description: Check in a ticket using its code
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ticketCode:
+                  type: string
+                eventId:
+                  type: string
+                validatedBy:
+                  type: string
+            example:
+              ticketCode: "ABCD-1234-EFGH-5678"
+      responses:
+        '200':
+          description: Successfully checked in
+          content:
+            application/json:
+              example:
+                success: true
+                ticket:
+                  id: "507f1f77bcf86cd799439015"
+                  ticketCode: "ABCD-1234-EFGH-5678"
+                  attendeeName: "John Doe"
+                  attendeeEmail: "john@example.com"
+                  status: "checked-in"
+                  checkedInAt: "2024-01-15T10:30:00Z"
+                  event:
+                    id: "507f1f77bcf86cd799439013"
+                    name: "Tech Conference 2024"
+                    date: "2024-06-15"
+                    time: "09:00"
+                    location: "Convention Center"
+                  ticketType: "General Admission"
+                  price: 100
+                message: "Successfully checked in John Doe"
+        '400':
+          description: Ticket already checked in or revoked
+        '401':
+          description: Unauthorized
+        '404':
+          description: Ticket not found
+        '500':
+          description: Internal server error
+
+  # ==================== PUBLIC ENDPOINTS ====================
+  /tickets/buy-ticket:
+    post:
+      tags:
+        - Public
+      summary: Purchase ticket
+      description: Purchase a ticket for an event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BuyTicketRequest'
+            example:
+              eventId: "507f1f77bcf86cd799439013"
+              ticketTypeId: "507f1f77bcf86cd799439014"
+              attendeeName: "John Doe"
+              attendeeEmail: "john@example.com"
+      responses:
+        '200':
+          description: Successfully purchased ticket
+          content:
+            application/json:
+              example:
+                success: true
+                ticket:
+                  _id: "507f1f77bcf86cd799439015"
+                  ticketCode: "ABCD-1234-EFGH-5678"
+                  attendeeName: "John Doe"
+                  attendeeEmail: "john@example.com"
+                  status: "valid"
+                  event:
+                    name: "Tech Conference 2024"
+                    date: "2024-06-15"
+                    time: "09:00"
+                    location: "Convention Center"
+                  ticketType: "General Admission"
+                  price: 100
+                message: "Ticket purchased successfully!"
+                availableTickets: 199
+        '400':
+          description: Missing fields or ticket sold out
+        '404':
+          description: Event or ticket type not found
+        '500':
+          description: Internal server error
+
+  /tickets/validate-ticket-by-code:
+    post:
+      tags:
+        - Public
+      summary: Validate ticket by code
+      description: Validate a ticket using its code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ticketCode:
+                  type: string
+            example:
+              ticketCode: "ABCD-1234-EFGH-5678"
+      responses:
+        '200':
+          description: Successfully validated ticket
+          content:
+            application/json:
+              example:
+                ticket:
+                  id: "507f1f77bcf86cd799439015"
+                  ticketCode: "ABCD-1234-EFGH-5678"
+                  attendeeName: "John Doe"
+                  attendeeEmail: "john@example.com"
+                  status: "valid"
+                  event:
+                    _id: "507f1f77bcf86cd799439013"
+                    name: "Tech Conference 2024"
+        '400':
+          description: Ticket code required or ticket revoked
+        '404':
+          description: Ticket not found
+        '500':
+          description: Internal server error
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    RegisterRequest:
+      type: object
+      required:
+        - fullName
+        - email
+        - password
+        - registrationKey
+      properties:
+        fullName:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        registrationKey:
+          type: string
+          pattern: "^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$"
+
+    CreateEventRequest:
+      type: object
+      required:
+        - name
+        - date
+        - time
+        - location
+        - description
+        - ticketTypes
+      properties:
+        name:
+          type: string
+        date:
+          type: string
+          format: date
+        time:
+          type: string
+        location:
+          type: string
+        description:
+          type: string
+        ticketTypes:
+          type: array
+          items:
+            type: object
+            required:
+              - name
+              - price
+              - quantity
+            properties:
+              name:
+                type: string
+              price:
+                type: number
+                minimum: 0
+              quantity:
+                type: integer
+                minimum: 1
+              description:
+                type: string
+              specialConditions:
+                type: string
+
+    UpdateEventRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        date:
+          type: string
+          format: date
+        time:
+          type: string
+        location:
+          type: string
+        description:
+          type: string
+        ticketTypes:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              price:
+                type: number
+              quantity:
+                type: integer
+              description:
+                type: string
+              specialConditions:
+                type: string
+
+    CreateTicketRequest:
+      type: object
+      required:
+        - eventId
+        - ticketTypeId
+        - attendeeName
+        - attendeeEmail
+      properties:
+        eventId:
+          type: string
+        ticketTypeId:
+          type: string
+        attendeeName:
+          type: string
+        attendeeEmail:
+          type: string
+          format: email
+
+    BuyTicketRequest:
+      type: object
+      required:
+        - eventId
+        - ticketTypeId
+        - attendeeName
+        - attendeeEmail
+      properties:
+        eventId:
+          type: string
+        ticketTypeId:
+          type: string
+        attendeeName:
+          type: string
+        attendeeEmail:
+          type: string
+          format: email
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        success:
+          type: boolean
+          default: false

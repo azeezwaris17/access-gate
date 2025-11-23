@@ -1,4 +1,4 @@
-// app/(public)/events/page.tsx
+// app/(public)/access-gate/events/page.tsx
 "use client";
 
 import React from "react";
@@ -212,8 +212,11 @@ const LoadingScreen = () => (
 );
 
 const HeaderSection = ({ events }: { events: Event[] }) => {
+  // Ensure events is an array before calculating
+  const safeEvents = Array.isArray(events) ? events : [];
+  
   // Calculate total available tickets across all events
-  const totalAvailableTickets = events.reduce(
+  const totalAvailableTickets = safeEvents.reduce(
     (acc, event) =>
       acc +
       event.ticketTypes.reduce(
@@ -272,7 +275,7 @@ const HeaderSection = ({ events }: { events: Event[] }) => {
           >
             <Box sx={{ textAlign: "center" }}>
               <Typography variant="h4" fontWeight="bold" color="primary.main">
-                {events.length}+
+                {safeEvents.length}+
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 Events
@@ -1098,11 +1101,27 @@ export default function EventsPage() {
   const fetchEvents = async () => {
     try {
       // Use the get-all-events endpoint that includes sold counts
-      const response = await api.get("/events/get-all-events");
-      setEvents(response.data);
+      const response = await api.get("/v1/events/get-all-events");
+      
+      // Handle different possible response structures
+      if (Array.isArray(response.data)) {
+        // If response.data is directly an array
+        setEvents(response.data);
+      } else if (response.data && Array.isArray(response.data.events)) {
+        // If response.data has an events property that is an array
+        setEvents(response.data.events);
+      } else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        // If response.data has a data property that is an array
+        setEvents(response.data.data);
+      } else {
+        // If no array found, set empty array and log for debugging
+        console.warn("Unexpected API response structure:", response.data);
+        setEvents([]);
+      }
     } catch (error: unknown) {
       console.error("Failed to fetch events:", error);
       toast.error("Failed to load events");
+      setEvents([]); // Ensure events is always an array even on error
     } finally {
       setLoading(false);
     }
@@ -1119,7 +1138,7 @@ export default function EventsPage() {
 
     setPurchaseLoading(true);
     try {
-      const response = await api.post("/tickets/purchase", {
+      const response = await api.post("/v1/tickets/buy-ticket", {
         eventId: selectedEvent._id,
         ticketTypeId: selectedTicketType._id,
         attendeeName: formData.attendeeName,
@@ -1152,7 +1171,7 @@ export default function EventsPage() {
       wrapper.style.justifyContent = "center";
       wrapper.style.alignItems = "center";
       wrapper.style.padding = "20px";
-      wrapper.style.background = "white"; // Optional: white background for the wrapper
+      wrapper.style.background = "white";
 
       const clone = ticketRef.current.cloneNode(true) as HTMLElement;
       wrapper.appendChild(clone);
@@ -1160,7 +1179,7 @@ export default function EventsPage() {
       document.body.appendChild(wrapper);
 
       const dataUrl = await toPng(wrapper, {
-        backgroundColor: "#ffffff", // White background for the entire image
+        backgroundColor: "#ffffff", 
         width: wrapper.scrollWidth * 2,
         height: wrapper.scrollHeight * 2,
         pixelRatio: 2,
@@ -1241,12 +1260,15 @@ export default function EventsPage() {
     }, 1000);
   };
 
-  const filteredEvents = events.filter(
-    (event) =>
-      event.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      event.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      event.description.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Safe filtering that handles cases where events might not be an array
+  const filteredEvents = Array.isArray(events) 
+    ? events.filter(
+        (event) =>
+          event.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          event.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          event.description.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    : [];
 
   if (isLoading) {
     return <LoadingScreen />;

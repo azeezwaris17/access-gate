@@ -51,6 +51,21 @@ import {
 /**
  * Interfaces
  */
+interface EventAnalytics {
+  name: string;
+  ticketCount: number;
+  checkedIn: number;
+  revenue: number;
+  checkInRate: number;
+}
+
+interface RecentCheckIn {
+  attendeeName: string;
+  eventName: string;
+  checkedInAt: Date;
+  ticketType: string;
+}
+
 interface Analytics {
   totalEvents: number;
   totalTickets: number;
@@ -58,12 +73,8 @@ interface Analytics {
   checkedInTickets: number;
   revokedTickets: number;
   totalRevenue: number;
-  eventAnalytics: Array<{
-    name: string;
-    ticketCount: number;
-    checkedIn: number;
-    revenue?: number;
-  }>;
+  eventAnalytics: EventAnalytics[];
+  recentCheckIns: RecentCheckIn[];
 }
 
 type TimeRange = "7d" | "30d" | "90d" | "1y";
@@ -494,6 +505,141 @@ const RevenueOverview: React.FC<RevenueOverviewProps> = ({ totalRevenue, totalEv
   );
 };
 
+// RecentCheckIns Component
+interface RecentCheckInsProps {
+  checkIns: RecentCheckIn[];
+  loading?: boolean;
+}
+
+const RecentCheckIns: React.FC<RecentCheckInsProps> = ({ checkIns, loading = false }) => {
+  // Group check-ins by event name
+  const checkInsByEvent = checkIns.reduce((acc, checkIn) => {
+    if (!acc[checkIn.eventName]) {
+      acc[checkIn.eventName] = [];
+    }
+    acc[checkIn.eventName].push(checkIn);
+    return acc;
+  }, {} as Record<string, RecentCheckIn[]>);
+
+  // Sort events by most recent check-in
+  const sortedEvents = Object.keys(checkInsByEvent).sort((a, b) => {
+    const latestA = Math.max(...checkInsByEvent[a].map(c => new Date(c.checkedInAt).getTime()));
+    const latestB = Math.max(...checkInsByEvent[b].map(c => new Date(c.checkedInAt).getTime()));
+    return latestB - latestA;
+  });
+
+  if (loading) {
+    return (
+      <Card elevation={2} sx={{ borderRadius: 2, flex: "1 1 400px", minWidth: "300px" }}>
+        <CardContent>
+          <Skeleton variant="text" width={200} height={32} sx={{ mb: 3 }} />
+          {[1, 2, 3].map((i) => (
+            <Box key={i} sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", py: 1 }}>
+              <Skeleton variant="text" width={120} height={24} />
+              <Skeleton variant="text" width={80} height={24} />
+            </Box>
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card elevation={2} sx={{ borderRadius: 2, flex: "1 1 400px", minWidth: "300px" }}>
+      <CardContent>
+        <Typography variant="h6" component="h3" fontWeight="bold" gutterBottom>
+          Recent Check-ins
+        </Typography>
+
+        {checkIns.length > 0 ? (
+          <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
+            {sortedEvents.map((eventName) => (
+              <Paper
+                key={eventName}
+                elevation={1}
+                sx={{
+                  p: 2,
+                  mb: 2,
+                  borderRadius: 2,
+                  backgroundColor: 'background.paper',
+                  border: '1px solid',
+                  borderColor: 'divider'
+                }}
+              >
+                {/* Event Header */}
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, pb: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
+                  <Event sx={{ fontSize: 20, color: 'primary.main', mr: 1 }} />
+                  <Typography variant="subtitle1" fontWeight="bold" color="primary.main">
+                    {eventName}
+                  </Typography>
+                  <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center' }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ mr: 1 }}>
+                      {checkInsByEvent[eventName].length} check-in{checkInsByEvent[eventName].length !== 1 ? 's' : ''}
+                    </Typography>
+                  </Box>
+                </Box>
+
+                {/* Check-in List for this Event */}
+                <Box sx={{ spaceY: 1 }}>
+                  {checkInsByEvent[eventName]
+                    .sort((a, b) => new Date(b.checkedInAt).getTime() - new Date(a.checkedInAt).getTime())
+                    .map((checkIn, index) => (
+                      <Box
+                        key={index}
+                        sx={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'flex-start',
+                          p: 1.5,
+                          borderRadius: 1,
+                          backgroundColor: 'grey.50',
+                          '&:hover': {
+                            backgroundColor: 'grey.100',
+                          }
+                        }}
+                      >
+                        <Box sx={{ flex: 1 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                            <CheckCircle 
+                              sx={{ 
+                                fontSize: 16, 
+                                color: 'success.main', 
+                                mr: 1 
+                              }} 
+                            />
+                            <Typography variant="subtitle2" fontWeight="bold">
+                              {checkIn.attendeeName}
+                            </Typography>
+                          </Box>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                            {checkIn.ticketType}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                            {new Date(checkIn.checkedInAt).toLocaleDateString()} • {new Date(checkIn.checkedInAt).toLocaleTimeString([], { 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            })}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    ))}
+                </Box>
+              </Paper>
+            ))}
+          </Box>
+        ) : (
+          <Box sx={{ textAlign: 'center', py: 4 }}>
+            <CheckCircle sx={{ fontSize: 48, color: "text.secondary", mb: 2, opacity: 0.5 }} />
+            <Typography variant="body2" color="text.secondary">
+              No recent check-ins
+            </Typography>
+          </Box>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
 // LoadingSkeleton Component
 const LoadingSkeleton: React.FC = () => (
   <Box sx={{ minHeight: "100vh", background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)", py: 4, px: { xs: 2, sm: 3, lg: 4 } }}>
@@ -527,6 +673,7 @@ const LoadingSkeleton: React.FC = () => (
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
           <CheckInProgress checkedInTickets={0} totalTickets={0} loading={true} />
           <RevenueOverview totalRevenue={0} totalEvents={0} growth={0} loading={true} />
+          <RecentCheckIns checkIns={[]} loading={true} />
         </Box>
       </Box>
     </Container>
@@ -575,6 +722,7 @@ function DashboardPage() {
   const theme = useTheme();
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [timeRange, setTimeRange] = useState<TimeRange>("30d");
 
   // Mock growth data
@@ -590,12 +738,25 @@ function DashboardPage() {
     fetchAnalytics();
   }, [timeRange]);
 
-  const fetchAnalytics = async () => {
-    setIsLoading(true);
+  const fetchAnalytics = async (isRefresh = false) => {
+    if (isRefresh) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
+    
     try {
-      const response = await api.get(`/events/analytics`);
+      const response = await api.get(`/v1/events/analytics`);
       if (response.data) {
-        setAnalytics(response.data);
+        // Convert string dates to Date objects for recent check-ins
+        const analyticsData: Analytics = {
+          ...response.data,
+          recentCheckIns: response.data.recentCheckIns?.map((checkIn: { attendeeName: string; eventName: string; checkedInAt: string; ticketType: string }) => ({
+            ...checkIn,
+            checkedInAt: new Date(checkIn.checkedInAt)
+          })) || []
+        };
+        setAnalytics(analyticsData);
         toast.success("Dashboard data updated");
       }
     } catch (error: unknown) {
@@ -610,13 +771,18 @@ function DashboardPage() {
       }
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
+  };
+
+  const handleRefresh = () => {
+    fetchAnalytics(true);
   };
 
   /**
    * Prepare chart data from analytics
    */
-  const chartData = analytics?.eventAnalytics.map((event: { name: string; ticketCount: number; checkedIn: number; revenue?: number }, index: number) => ({
+  const chartData = analytics?.eventAnalytics.map((event, index) => ({
     name: event.name.length > 12 ? event.name.substring(0, 10) + "..." : event.name,
     total: event.ticketCount,
     checkedIn: event.checkedIn,
@@ -629,9 +795,70 @@ function DashboardPage() {
     ? Math.round((analytics.checkedInTickets / analytics.totalTickets) * 100) 
     : 0;
 
-  // Render loading state
+  // Show loading skeleton for initial load
   if (isLoading && !analytics) {
     return <LoadingSkeleton />;
+  }
+
+  // Show loading skeleton for refresh
+  if (isRefreshing && analytics) {
+    return (
+      <Box sx={{ minHeight: "100vh", background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)", py: 4, px: { xs: 2, sm: 3, lg: 4 } }}>
+        <Container maxWidth="xl">
+          <DashboardHeader
+            timeRange={timeRange}
+            onTimeRangeChange={setTimeRange}
+            onRefresh={handleRefresh}
+            adminName={admin?.fullName}
+            loading={true}
+          />
+
+          {/* Stats Cards */}
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 3, mb: 6, justifyContent: { xs: "center", sm: "flex-start" } }}>
+            <StatCard
+              title="Total Events"
+              value={0}
+              icon={Event}
+              color={theme.palette.primary.main}
+              loading={true}
+            />
+            <StatCard
+              title="Total Tickets"
+              value={0}
+              icon={ConfirmationNumber}
+              color={theme.palette.secondary.main}
+              loading={true}
+            />
+            <StatCard
+              title="Check-in Rate"
+              value={0}
+              icon={CheckCircle}
+              color={theme.palette.success.main}
+              loading={true}
+            />
+            <StatCard
+              title="Total Revenue"
+              value={0}
+              icon={AttachMoney}
+              color={theme.palette.info.main}
+              loading={true}
+            />
+          </Box>
+
+          {/* Charts Section */}
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <EventPerformanceChart data={[]} loading={true} />
+            
+            {/* Bottom Cards - FlexBox Layout */}
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+              <CheckInProgress checkedInTickets={0} totalTickets={0} loading={true} />
+              <RevenueOverview totalRevenue={0} totalEvents={0} growth={0} loading={true} />
+              <RecentCheckIns checkIns={[]} loading={true} />
+            </Box>
+          </Box>
+        </Container>
+      </Box>
+    );
   }
 
   // Render error state
@@ -645,7 +872,7 @@ function DashboardPage() {
         <DashboardHeader
           timeRange={timeRange}
           onTimeRangeChange={setTimeRange}
-          onRefresh={fetchAnalytics}
+          onRefresh={handleRefresh}
           adminName={admin?.fullName}
         />
 
@@ -700,6 +927,7 @@ function DashboardPage() {
               totalEvents={analytics!.totalEvents} 
               growth={revenueGrowth} 
             />
+            <RecentCheckIns checkIns={analytics!.recentCheckIns} />
           </Box>
         </Box>
       </Container>

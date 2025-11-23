@@ -18,7 +18,7 @@ interface AuthState {
   lastActivity: number;
   
   // Actions
-  setAuth: (token: string, admin: any) => void;
+  setAuth: (token: string, admin: Admin) => void;
   clearAuth: () => void;
   updateActivity: () => void;
   checkSession: () => boolean;
@@ -34,7 +34,7 @@ export const useAuthStore = create<AuthState>()(
       isLoading: true,
       lastActivity: Date.now(),
 
-      setAuth: (token: string, admin: any) => {
+      setAuth: (token: string, admin: Admin) => {
         set({ 
           token, 
           admin,

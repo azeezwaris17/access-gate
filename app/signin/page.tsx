@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuthStore } from "@/lib/store";
 import toast from "react-hot-toast";
 import api from "@/lib/services/api";
@@ -35,8 +35,9 @@ import {
   VisibilityOff,
   Email,
   Lock,
-  Security,
+  // Security,
 } from "@mui/icons-material";
+import Image from "next/image";
 
 /**
  * Zod schema for form validation
@@ -62,6 +63,12 @@ export default function SignInPage() {
   const { setAuth } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Set mounted state to true after component mounts
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   /**
    * React Hook Form configuration
@@ -90,7 +97,7 @@ export default function SignInPage() {
 
     try {
       // API call using the configured api service
-      const response = await api.post("/auth/login", {
+      const response = await api.post("/v1/auth/login", {
         email: data.email.toLowerCase().trim(),
         password: data.password,
         rememberMe: data.rememberMe,
@@ -123,27 +130,30 @@ export default function SignInPage() {
           response?: { 
             data?: { 
               error?: string; 
-              field?: string 
+              message?: string;
+              field?: string;
             }; 
-            status?: number 
-          } 
+            status?: number;
+          };
         };
         
-        if (apiError.response?.data?.error) {
-          errorMessage = apiError.response.data.error;
+        // Use message or error field from response
+        const serverMessage = apiError.response?.data?.message || apiError.response?.data?.error;
+        if (serverMessage) {
+          errorMessage = serverMessage;
 
-          // Set field-specific errors from backend with proper typing
-          if (apiError.response?.data?.field) {
-            const fieldName = apiError.response.data.field as keyof SignInForm;
-            setError(fieldName, {
+          // Handle field-specific errors if provided by backend
+          const fieldName = apiError.response?.data?.field;
+          if (fieldName && (fieldName === 'email' || fieldName === 'password')) {
+            setError(fieldName as keyof SignInForm, {
               type: "server",
-              message: apiError.response.data.error,
+              message: serverMessage,
             });
+          } else {
+            // If no specific field, show general error toast
+            toast.error(errorMessage);
           }
-        }
-
-        // Show error notification (unless it was a 401 which was already handled)
-        if (apiError.response?.status !== 401) {
+        } else {
           toast.error(errorMessage);
         }
       } else {
@@ -160,6 +170,26 @@ export default function SignInPage() {
   const handleTogglePassword = () => {
     setShowPassword((prev) => !prev);
   };
+
+  // Don't render until mounted to avoid hydration mismatch
+  if (!isMounted) {
+    return (
+      <Container
+        component="main"
+        maxWidth="sm"
+        sx={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          py: 4,
+          backgroundColor: "#f5f7fa",
+        }}
+      >
+        <CircularProgress />
+      </Container>
+    );
+  }
 
   return (
     <Container
@@ -196,11 +226,18 @@ export default function SignInPage() {
                   width: 80,
                   height: 80,
                   borderRadius: 2,
-                  backgroundColor: "#2196F3",
+                  // backgroundColor: "#2196F3",
                   mb: 3,
                 }}
               >
-                <Security sx={{ fontSize: 40, color: "white" }} />
+                {/* <Security sx={{ fontSize: 40, color: "white" }} /> */}
+                 <Image
+              src="/access-gate-favicon-2.png"
+              alt="Access Gate Logo"
+              width={60}
+              height={60}
+              style={{ objectFit: 'contain' }}
+            />
               </Paper>
 
               <Typography
@@ -335,7 +372,7 @@ export default function SignInPage() {
               >
                 {isLoading ? (
                   <>
-                    <CircularProgress size={20} sx={{ mr: 1 }} />
+                    <CircularProgress size={20} sx={{ mr: 1, color: "white" }} />
                     Signing In...
                   </>
                 ) : (
@@ -343,36 +380,29 @@ export default function SignInPage() {
                 )}
               </Button>
 
-              {/* Divider and Sign in Link */}
+              {/* Divider and Sign up Link */}
               <Divider sx={{ my: 3 }}>
-                <Box
+                <Typography variant="body2" color="text.secondary">
+                  Don&apos;t have an account?
+                </Typography>
+              </Divider>
+              
+              <Box sx={{ textAlign: "center" }}>
+                <Link
+                  href="/signup"
+                  variant="body1"
                   sx={{
-                    display: "flex",
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 1,
+                    textDecoration: "none",
+                    color: "primary.main",
+                    fontWeight: "medium",
+                    "&:hover": {
+                      color: "primary.dark",
+                    },
                   }}
                 >
-                  <Typography variant="body2" color="text.secondary">
-                    Don&apos;t have an account?
-                  </Typography>
-
-                  <Link
-                    href="/signup"
-                    variant="body1"
-                    sx={{
-                      textDecoration: "none",
-                      color: "primary.main",
-                      fontWeight: "medium",
-                      "&:hover": {
-                        color: "primary.dark",
-                      },
-                    }}
-                  >
-                    Create new account
-                  </Link>
-                </Box>
-              </Divider>
+                  Create new account
+                </Link>
+              </Box>
             </Box>
           </CardContent>
         </Card>

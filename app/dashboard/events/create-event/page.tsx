@@ -1,13 +1,13 @@
 // app/dashboard/events/create-event/page.tsx
 "use client";
-import React from 'react'
+import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import toast from "react-hot-toast";
-import api from "@/lib/services/api"; 
+import api from "@/lib/services/api";
 import { withAuth } from "@/lib/hocs/withAuth";
 
 // Material UI Components
@@ -53,6 +53,7 @@ const ticketTypeSchema = z.object({
   price: z.number().min(0, "Price must be positive"),
   quantity: z.number().min(1, "Quantity must be at least 1"),
   description: z.string().optional(),
+  specialConditions: z.string().optional(),
 });
 
 const createEventSchema = z.object({
@@ -61,7 +62,9 @@ const createEventSchema = z.object({
   time: z.string().min(1, "Event time is required"),
   location: z.string().min(1, "Event location is required"),
   description: z.string().min(10, "Description must be at least 10 characters"),
-  ticketTypes: z.array(ticketTypeSchema).min(1, "At least one ticket type is required"),
+  ticketTypes: z
+    .array(ticketTypeSchema)
+    .min(1, "At least one ticket type is required"),
 });
 
 type CreateEventForm = z.infer<typeof createEventSchema>;
@@ -86,6 +89,7 @@ function CreateEventPage() {
     watch,
     setValue,
     getValues,
+    trigger,
   } = useForm<CreateEventForm>({
     resolver: zodResolver(createEventSchema),
     mode: "onChange",
@@ -106,7 +110,13 @@ function CreateEventPage() {
     const currentTicketTypes = getValues("ticketTypes");
     setValue("ticketTypes", [
       ...currentTicketTypes,
-      { name: "", price: 0, quantity: 1, description: "" }
+      {
+        name: "",
+        price: 0,
+        quantity: 1,
+        description: "",
+        specialConditions: "",
+      },
     ]);
   };
 
@@ -115,20 +125,53 @@ function CreateEventPage() {
    */
   const removeTicketType = (index: number) => {
     const currentTicketTypes = getValues("ticketTypes");
-    setValue("ticketTypes", currentTicketTypes.filter((_, i) => i !== index));
+    setValue(
+      "ticketTypes",
+      currentTicketTypes.filter((_, i) => i !== index)
+    );
   };
 
   /**
    * Update ticket type field
    */
-  const updateTicketType = (index: number, field: keyof TicketTypeForm, value: string | number) => {
+  const updateTicketType = (
+    index: number,
+    field: keyof TicketTypeForm,
+    value: string | number
+  ) => {
     const currentTicketTypes = getValues("ticketTypes");
     const updatedTicketTypes = [...currentTicketTypes];
     updatedTicketTypes[index] = {
       ...updatedTicketTypes[index],
-      [field]: value
+      [field]: value,
     };
-    setValue("ticketTypes", updatedTicketTypes);
+    setValue("ticketTypes", updatedTicketTypes, { shouldValidate: true });
+  };
+
+  /**
+   * Handle next step
+   */
+  const handleNextStep = async () => {
+    // Validate current step fields with proper typing
+    let isValid = false;
+
+    if (activeStep === 0) {
+      isValid = await trigger([
+        "name",
+        "date",
+        "time",
+        "location",
+        "description",
+      ] as const);
+    } else {
+      isValid = await trigger(["ticketTypes"] as const);
+    }
+
+    if (isValid) {
+      setActiveStep((prev) => prev + 1);
+    } else {
+      toast.error("Please fix the validation errors before proceeding");
+    }
   };
 
   /**
@@ -139,15 +182,40 @@ function CreateEventPage() {
     setError("");
 
     try {
-      const response = await api.post("/events/create-event", data);
+      // Format the date properly for the API
+      const formattedData = {
+        ...data,
+        date: new Date(data.date).toISOString(),
+        // Ensure ticket types have proper structure
+        ticketTypes: data.ticketTypes.map((ticketType) => ({
+          ...ticketType,
+          // Ensure price and quantity are numbers
+          price: Number(ticketType.price),
+          quantity: Number(ticketType.quantity),
+        })),
+      };
 
-      if (response.data) {
-        toast.success("Event created successfully with tickets!");
-        router.push("/dashboard/events");
+      const response = await api.post("/v1/events/create-event", formattedData);
+
+      if (response.data.success) {
+        toast.success("Event created successfully!");
+        router.push("/dashboard/events/all-events");
+      } else {
+        throw new Error(response.data.error || "Failed to create event");
       }
-    } catch (error: unknown) {
-      console.error("Event creation error:", error);
-      const errorMessage = "Failed to create event";
+    } catch (err: unknown) {
+      console.error("Event creation error:", err);
+      let errorMessage = "Failed to create event";
+
+      if (typeof err === "object" && err !== null && "response" in err) {
+        const axiosError = err as {
+          response?: { status?: number; data?: { error?: string } };
+        };
+        errorMessage = axiosError.response?.data?.error || errorMessage;
+      } else if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+
       setError(errorMessage);
       toast.error(errorMessage);
     } finally {
@@ -269,12 +337,14 @@ function CreateEventPage() {
                   />
 
                   {/* Date and Time Fields - Flexbox Layout */}
-                  <Box sx={{ 
-                    display: 'flex', 
-                    flexDirection: { xs: 'column', sm: 'row' },
-                    gap: 3, 
-                    mb: 3 
-                  }}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      flexDirection: { xs: "column", sm: "row" },
+                      gap: 3,
+                      mb: 3,
+                    }}
+                  >
                     {/* Date Field */}
                     <Box sx={{ flex: 1 }}>
                       <TextField
@@ -313,7 +383,9 @@ function CreateEventPage() {
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
-                              <Schedule color={errors.time ? "error" : "action"} />
+                              <Schedule
+                                color={errors.time ? "error" : "action"}
+                              />
                             </InputAdornment>
                           ),
                         }}
@@ -375,7 +447,7 @@ function CreateEventPage() {
                   />
 
                   <Button
-                    onClick={() => setActiveStep(1)}
+                    onClick={handleNextStep}
                     fullWidth
                     variant="contained"
                     size="large"
@@ -395,7 +467,14 @@ function CreateEventPage() {
                 <>
                   {/* Ticket Types Section */}
                   <Box sx={{ mb: 4 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        mb: 3,
+                      }}
+                    >
                       <Typography variant="h6" fontWeight="bold">
                         Ticket Types
                       </Typography>
@@ -420,8 +499,22 @@ function CreateEventPage() {
                         elevation={2}
                         sx={{ p: 3, mb: 3, borderRadius: 2 }}
                       >
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                          <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Box
+                          sx={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            mb: 2,
+                          }}
+                        >
+                          <Typography
+                            variant="h6"
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 1,
+                            }}
+                          >
                             <ConfirmationNumber />
                             Ticket Type {index + 1}
                           </Typography>
@@ -435,21 +528,27 @@ function CreateEventPage() {
                         </Box>
 
                         {/* Ticket Type Fields - Flexbox Layout */}
-                        <Box sx={{ 
-                          display: 'flex', 
-                          flexDirection: { xs: 'column', sm: 'row' },
-                          gap: 3,
-                          mb: 3 
-                        }}>
+                        <Box
+                          sx={{
+                            display: "flex",
+                            flexDirection: { xs: "column", sm: "row" },
+                            gap: 3,
+                            mb: 3,
+                          }}
+                        >
                           {/* Ticket Name */}
                           <Box sx={{ flex: 1 }}>
                             <TextField
                               fullWidth
-                              label="Ticket Name"
-                              value={ticketTypes[index]?.name || ''}
-                              onChange={(e) => updateTicketType(index, 'name', e.target.value)}
+                              label="Ticket Name *"
+                              value={ticketTypes[index]?.name || ""}
+                              onChange={(e) =>
+                                updateTicketType(index, "name", e.target.value)
+                              }
                               error={!!errors.ticketTypes?.[index]?.name}
-                              helperText={errors.ticketTypes?.[index]?.name?.message}
+                              helperText={
+                                errors.ticketTypes?.[index]?.name?.message
+                              }
                               placeholder="e.g., General Admission, VIP"
                             />
                           </Box>
@@ -458,12 +557,22 @@ function CreateEventPage() {
                           <Box sx={{ flex: 1 }}>
                             <TextField
                               fullWidth
-                              label="Price"
+                              label="Price *"
                               type="number"
-                              value={ticketTypes[index]?.price || 0}
-                              onChange={(e) => updateTicketType(index, 'price', parseFloat(e.target.value))}
+                              value={ticketTypes[index]?.price || ""}
+                              onChange={(e) =>
+                                updateTicketType(
+                                  index,
+                                  "price",
+                                  e.target.value === ""
+                                    ? 0
+                                    : parseFloat(e.target.value)
+                                )
+                              }
                               error={!!errors.ticketTypes?.[index]?.price}
-                              helperText={errors.ticketTypes?.[index]?.price?.message}
+                              helperText={
+                                errors.ticketTypes?.[index]?.price?.message
+                              }
                               InputProps={{
                                 startAdornment: (
                                   <InputAdornment position="start">
@@ -478,26 +587,61 @@ function CreateEventPage() {
                           <Box sx={{ flex: 1 }}>
                             <TextField
                               fullWidth
-                              label="Quantity"
+                              label="Quantity *"
                               type="number"
-                              value={ticketTypes[index]?.quantity || 1}
-                              onChange={(e) => updateTicketType(index, 'quantity', parseInt(e.target.value))}
+                              value={ticketTypes[index]?.quantity || ""}
+                              onChange={(e) =>
+                                updateTicketType(
+                                  index,
+                                  "quantity",
+                                  e.target.value === ""
+                                    ? 1
+                                    : parseInt(e.target.value)
+                                )
+                              }
                               error={!!errors.ticketTypes?.[index]?.quantity}
-                              helperText={errors.ticketTypes?.[index]?.quantity?.message}
+                              helperText={
+                                errors.ticketTypes?.[index]?.quantity?.message
+                              }
                             />
                           </Box>
                         </Box>
 
                         {/* Description Field */}
-                        <Box>
+                        <Box sx={{ mb: 2 }}>
                           <TextField
                             fullWidth
                             label="Description (Optional)"
                             multiline
                             rows={2}
-                            value={ticketTypes[index]?.description || ''}
-                            onChange={(e) => updateTicketType(index, 'description', e.target.value)}
+                            value={ticketTypes[index]?.description || ""}
+                            onChange={(e) =>
+                              updateTicketType(
+                                index,
+                                "description",
+                                e.target.value
+                              )
+                            }
                             placeholder="Describe this ticket type..."
+                          />
+                        </Box>
+
+                        {/* Special Conditions Field */}
+                        <Box>
+                          <TextField
+                            fullWidth
+                            label="Special Conditions (Optional)"
+                            multiline
+                            rows={2}
+                            value={ticketTypes[index]?.specialConditions || ""}
+                            onChange={(e) =>
+                              updateTicketType(
+                                index,
+                                "specialConditions",
+                                e.target.value
+                              )
+                            }
+                            placeholder="Any special terms or conditions for this ticket..."
                           />
                         </Box>
                       </Paper>
@@ -505,7 +649,7 @@ function CreateEventPage() {
                   </Box>
 
                   {/* Navigation Buttons */}
-                  <Box sx={{ display: 'flex', gap: 2 }}>
+                  <Box sx={{ display: "flex", gap: 2 }}>
                     <Button
                       onClick={() => setActiveStep(0)}
                       variant="outlined"
@@ -531,7 +675,7 @@ function CreateEventPage() {
                           Creating Event...
                         </>
                       ) : (
-                        "Create Event & Tickets"
+                        "Create Event"
                       )}
                     </Button>
                   </Box>
